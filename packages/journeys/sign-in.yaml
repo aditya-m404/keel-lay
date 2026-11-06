@@ -1,0 +1,22 @@
+id: sign-in
+title: Sign in
+feature: session
+actor: grace
+actors: [owner, member, viewer]
+steps:
+  - id: sign-in
+    ui:
+      - { goto: /sign-in }
+      - { see: Sign in }
+      - { fill: { label: Email, text: grace@keel.test } }
+      - { fill: { label: Password, text: keel-local-only } }
+      - { click: Sign in }
+      - { see: Launch }
+    api:
+      method: POST
+      path: /session
+      body:
+        email: grace@keel.test
+        password: keel-local-only
+      expect: 201
+    thinkMs: { min: 400, max: 1600 }

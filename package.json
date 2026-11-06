@@ -1,0 +1,33 @@
+{
+  "name": "keel",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "env:sync": "./scripts/env-sync",
+    "dev": "./scripts/up",
+    "dev:local": "./scripts/up",
+    "dev:prod": "./scripts/up prodlike",
+    "local-prod": "./scripts/up prodlike",
+    "local-prod:rebuild": "KEEL_REBUILD=1 ./scripts/up prodlike",
+    "admin": "./scripts/up --with-openobserve",
+    "down": "./scripts/down",
+    "down:wipe": "./scripts/down --wipe",
+    "status": "node scripts/status.ts",
+    "doctor": "./scripts/doctor",
+    "collector:render": "node scripts/render-collector.ts",
+    "build": "node scripts/bundle-api.mjs && pnpm --filter @keel/web build && pnpm --filter @keel/studio build && node scripts/bundle-studio.mjs",
+    "build:api": "node scripts/bundle-api.mjs",
+    "build:web": "pnpm --filter @keel/web build",
+    "build:studio": "pnpm --filter @keel/studio build && node scripts/bundle-studio.mjs",
+    "prove": "node scripts/prove.ts",
+    "journeys:check": "node scripts/journeys-check.ts",
+    "check": "node scripts/journeys-check.ts && node --test collector/routing.test.mjs && pnpm exec tsc -p apps/api --noEmit && pnpm exec tsc -p apps/web --noEmit && pnpm exec tsc -p apps/studio --noEmit",
+    "phase": "node scripts/phase.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

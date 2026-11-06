@@ -1,0 +1,13 @@
+{
+  "name": "@keel/contracts",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./session": "./src/session.ts",
+    "./board": "./src/board.ts",
+    "./writes": "./src/writes.ts"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  }
+}

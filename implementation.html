@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keel — implementation</title>
+<style>
+  :root {
+    --ink: #1c1915;
+    --muted: #5e584e;
+    --line: #e4ddd2;
+    --line-strong: #d3cbbf;
+    --paper: #f6f3ee;
+    --sheet: #fffcf8;
+    --accent: #0e4b48;
+    --accent-soft: #e5f0ef;
+    --warn: #8a3d2f;
+    --warn-soft: #f8ece8;
+    --ok: #1f5c38;
+    --ok-soft: #e7f2eb;
+    --nav: 248px;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 18px;
+    line-height: 1.55;
+  }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  .layout {
+    display: grid;
+    grid-template-columns: var(--nav) minmax(0, 1fr);
+    max-width: 1220px;
+    margin: 0 auto;
+    align-items: start;
+  }
+  nav {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: auto;
+    padding: 28px 16px 40px 8px;
+    font-family: var(--sans);
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  nav .mark {
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav a {
+    display: block;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 5px 0 5px 10px;
+    border-left: 2px solid transparent;
+  }
+  nav a:hover { color: var(--ink); }
+  nav li.group {
+    list-style: none;
+    margin: 16px 0 6px 10px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8a8376;
+    font-weight: 650;
+  }
+  main { padding: 36px 28px 96px 12px; max-width: 860px; min-width: 0; }
+  header.cover {
+    border-bottom: 1px solid var(--line-strong);
+    padding-bottom: 28px;
+    margin-bottom: 8px;
+  }
+  .kicker {
+    font-family: var(--sans);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 650;
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-weight: 560;
+    font-size: 40px;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    margin: 0 0 14px;
+  }
+  .lede { font-size: 20px; line-height: 1.45; margin: 0; }
+  .see { font-family: var(--sans); font-size: 14px; color: var(--muted); margin: 14px 0 0; }
+  h2 {
+    font-size: 28px;
+    font-weight: 560;
+    letter-spacing: -0.015em;
+    margin: 56px 0 12px;
+    line-height: 1.2;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 650;
+    margin: 28px 0 8px;
+  }
+  h4 {
+    font-family: var(--sans);
+    font-size: 13.5px;
+    font-weight: 650;
+    margin: 18px 0 6px;
+  }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 16px; padding-left: 1.2em; }
+  li { margin: 0 0 6px; }
+  strong { font-weight: 650; }
+  code { font-family: var(--mono); font-size: 0.84em; }
+  p code, li code, td code, th code {
+    background: #efeae3;
+    padding: 0.05em 0.35em;
+    border-radius: 3px;
+  }
+  pre {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.45;
+    background: #1c1915;
+    color: #f3eee6;
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow: auto;
+    margin: 0 0 16px;
+  }
+  pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--sans);
+    font-size: 13.5px;
+    line-height: 1.4;
+    margin: 0 0 18px;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 650;
+    border-bottom: 1px solid var(--line-strong);
+  }
+  .callout {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    margin: 0 0 16px;
+    font-family: var(--sans);
+    font-size: 14.5px;
+    line-height: 1.45;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+  .tag {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    font-weight: 650;
+    padding: 2px 7px;
+    border-radius: 99px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    margin-right: 6px;
+    vertical-align: 2px;
+  }
+  .verb {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    color: var(--accent);
+  }
+  footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    nav { position: relative; height: auto; border-bottom: 1px solid var(--line); padding: 16px; }
+    nav ol { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+    nav li.group { flex-basis: 100%; margin: 10px 0 0; }
+    main { padding: 24px 16px 64px; }
+    h1 { font-size: 32px; }
+  }
+  @media print {
+    nav { display: none; }
+    .layout { display: block; max-width: none; }
+    main { max-width: none; }
+    body { background: white; font-size: 12pt; }
+    pre { white-space: pre-wrap; }
+    a { color: inherit; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <div class="mark">Keel</div>
+  <ol>
+    <li><a href="#how">How to use this</a></li>
+    <li><a href="#shared">Shared contract</a></li>
+    <li class="group">Board</li>
+    <li><a href="#p1">1 · Workspace and schema</a></li>
+    <li><a href="#p2">2 · Session and reads</a></li>
+    <li><a href="#p3">3 · Writes and changes</a></li>
+    <li><a href="#p4">4 · Web stores and screens</a></li>
+    <li class="group">Record</li>
+    <li><a href="#p5">5 · Telemetry</a></li>
+    <li><a href="#p6">6 · Accounts and prove</a></li>
+    <li class="group">Rehearsal</li>
+    <li><a href="#p7">7 · Studio and computer</a></li>
+    <li><a href="#p8">8 · Person</a></li>
+    <li><a href="#p9">9 · Skill</a></li>
+    <li class="group">Ship</li>
+    <li><a href="#p10">10 · Local-prod</a></li>
+    <li><a href="#p11">11 · Production</a></li>
+    <li><a href="#p12">12 · Other vendors</a></li>
+  </ol>
+</nav>
+<main>
+<header class="cover">
+  <p class="kicker">Keel implementation · 6 Nov 2026</p>
+  <h1>Implementation plan</h1>
+  <p class="lede">Twelve phases. Each phase has the files, the routes, the bodies, and the test script that must pass before the next phase starts.</p>
+  <p class="see">The product decisions are in <a href="plan.html">the plan</a>. How the pieces behave is in <a href="explanation.html">the explanation</a>. This page is what to build.</p>
+</header>
+
+<section id="how">
+  <h2>How to use this</h2>
+  <p>Build in order. A phase is finished when its script exits 0 and the scripts of the earlier phases still exit 0. The script is the contract. A green UI with a failing script is an unfinished phase.</p>
+  <p>Phases 1 through 4 are the board, and they correspond to milestone M1 in the plan. Phases 5 through 12 correspond to M2 through M9, in that order. The board is the product the later phases rehearse, so its client keeps a local store and asks the API only for what changed.</p>
+  <table>
+    <thead><tr><th>Phase</th><th>Plan</th><th>Script</th></tr></thead>
+    <tbody>
+      <tr><td>1 Workspace and schema</td><td>M1</td><td><code>node scripts/phases/phase-01.mjs</code></td></tr>
+      <tr><td>2 Session and reads</td><td>M1</td><td><code>node scripts/phases/phase-02.mjs</code></td></tr>
+      <tr><td>3 Writes and changes</td><td>M1</td><td><code>node scripts/phases/phase-03.mjs</code></td></tr>
+      <tr><td>4 Web stores and screens</td><td>M1</td><td><code>node scripts/phases/phase-04.mjs</code></td></tr>
+      <tr><td>5 Telemetry</td><td>M2</td><td><code>node scripts/phases/phase-05.mjs</code></td></tr>
+      <tr><td>6 Accounts and prove</td><td>M3</td><td><code>node scripts/phases/phase-06.mjs</code></td></tr>
+      <tr><td>7 Studio and computer</td><td>M4</td><td><code>node scripts/phases/phase-07.mjs</code></td></tr>
+      <tr><td>8 Person</td><td>M5</td><td><code>node scripts/phases/phase-08.mjs</code></td></tr>
+      <tr><td>9 Skill</td><td>M6</td><td><code>node scripts/phases/phase-09.mjs</code></td></tr>
+      <tr><td>10 Local-prod</td><td>M7</td><td><code>node scripts/phases/phase-10.mjs</code></td></tr>
+      <tr><td>11 Production</td><td>M8</td><td><code>node scripts/phases/phase-11.mjs</code></td></tr>
+      <tr><td>12 Other vendors</td><td>M9</td><td><code>node scripts/phases/phase-12.mjs</code></td></tr>
+    </tbody>
+  </table>
+  <p><code>pnpm check</code> runs every phase script that does not need a live vendor, plus the typecheck. Phases 6 and 12 skip themselves when <code>KEEL_COLLECTOR_VENDOR=debug</code> and print <code>skipped: no vendor</code> with exit 0. The debug path of those phases still runs.</p>
+</section>
+
+<section id="shared">
+  <h2>Shared contract</h2>
+  <p>Every phase uses this envelope. A later phase adds routes. It does not invent a second error shape.</p>
+
+  <h3>Stack</h3>
+  <p>TypeScript, Node 22, pnpm 9, Hono, Vite, React, React Router, Zod, Vitest, Playwright, Postgres 16. The web and Studio are single-page apps. A navigation inside either app swaps a route component. The document loads once.</p>
+
+  <h3>Ids and time</h3>
+  <p>New ids are ULIDs with a prefix: <code>card_</code>, <code>cmt_</code>, <code>ses_</code>, <code>run_</code>. Seed ids are fixed words, listed in phase 1, so a test can name them. Timestamps are ISO-8601 in UTC. Versions and the board revision are integers that start at 1 and only increase.</p>
+
+  <h3>Error body</h3>
+  <p>Every 4xx and 5xx JSON body has this shape. The message is for a person. The code is for the client and the test.</p>
+<pre><code>{
+  "error": {
+    "code": "invalid_title",
+    "message": "Title is required."
+  }
+}</code></pre>
+  <table>
+    <thead><tr><th>Code</th><th>Status</th><th>When</th></tr></thead>
+    <tbody>
+      <tr><td><code>invalid_body</code></td><td>400</td><td>Zod rejected the JSON, a query, or a header.</td></tr>
+      <tr><td><code>invalid_title</code></td><td>400</td><td>Title is empty or longer than 200 characters after trim.</td></tr>
+      <tr><td><code>invalid_comment</code></td><td>400</td><td>Comment body is empty or longer than 2000 characters.</td></tr>
+      <tr><td><code>invalid_credentials</code></td><td>401</td><td>Email or password does not match. Both failures use this one message.</td></tr>
+      <tr><td><code>unauthenticated</code></td><td>401</td><td>Cookie missing or expired.</td></tr>
+      <tr><td><code>forbidden</code></td><td>403</td><td>The role cannot do this. A viewer’s move is this code.</td></tr>
+      <tr><td><code>not_found</code></td><td>404</td><td>Board, card, or run does not exist.</td></tr>
+      <tr><td><code>conflict</code></td><td>409</td><td><code>If-Match</code> is behind the card’s version. The body also includes <code>card</code>.</td></tr>
+      <tr><td><code>idempotency_replay</code></td><td>200</td><td>Not an error. A repeated <code>Idempotency-Key</code> returns the original success body with this code in a header, <code>x-keel-idempotent: replay</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Session cookie</h3>
+  <p>Name <code>keel_session</code>. HttpOnly, SameSite=Lax, Path=/. Max-Age 43200. Secure when <code>KEEL_ENV=production</code>. The database stores the SHA-256 of the token, never the token. A mutating browser request sends <code>Origin</code> equal to <code>KEEL_WEB_ORIGIN</code> or <code>KEEL_STUDIO_ORIGIN</code>. A request with a different Origin is 403 <code>forbidden</code>. The runner is not a browser: it sends the cookie and the run headers, and it omits Origin.</p>
+
+  <h3>Run headers</h3>
+  <p>Optional on every board route. Organic use omits them. The API copies whatever is present onto the log, the span, and the metric attributes.</p>
+  <table>
+    <thead><tr><th>Header</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>x-keel-run-id</code></td><td><code>run_</code> plus a ULID</td></tr>
+      <tr><td><code>x-keel-actor</code></td><td><code>ada</code>, <code>grace</code>, or <code>linus</code></td></tr>
+      <tr><td><code>x-keel-journey</code></td><td>journey id, such as <code>create-card</code></td></tr>
+      <tr><td><code>x-keel-step</code></td><td>step id, such as <code>add-card</code></td></tr>
+      <tr><td><code>x-keel-pace</code></td><td><code>demo</code>, <code>office</code>, <code>real-time</code>, or <code>machine</code></td></tr>
+      <tr><td><code>Idempotency-Key</code></td><td>required on <code>POST /cards</code> and <code>POST /cards/:id/comments</code></td></tr>
+      <tr><td><code>If-Match</code></td><td>required on <code>PATCH /cards/:id</code>. The card version the client last stored.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Types the client stores</h3>
+<pre><code>type Role = "owner" | "member" | "viewer"
+type Column = "todo" | "doing" | "done"
+
+type User = { id: string; email: string; name: string; role: Role }
+
+type Card = {
+  id: string
+  boardId: string
+  title: string
+  column: Column
+  position: number
+  authorId: string
+  createdAt: string
+  updatedAt: string
+  version: number
+}
+
+type Comment = {
+  id: string
+  cardId: string
+  body: string
+  authorId: string
+  createdAt: string
+}
+
+type BoardSnapshot = {
+  id: string
+  name: string
+  revision: number
+  columns: Column[]
+  cardsById: Record&lt;string, Card&gt;
+}</code></pre>
+</section>
+
+<section id="p1">
+  <h2><span class="tag">Phase 1</span> Workspace and schema</h2>
+  <p>A teammate can install, start Postgres, and find the seeded board in the database. There is no HTTP yet.</p>
+
+  <h3>Files</h3>
+<pre><code>package.json                 pnpm workspace
+pnpm-workspace.yaml
+tsconfig.base.json
+.env.example
+apps/api/migrations/001_init.sql
+apps/api/src/db/migrate.ts
+apps/api/src/db/seed.ts
+scripts/init
+scripts/up
+scripts/down
+scripts/phases/phase-01.mjs</code></pre>
+  <p><code>./scripts/init</code> copies <code>.env.example</code> to <code>.env</code> when the file is missing and writes a random <code>KEEL_SESSION_SECRET</code> when that line is empty. <code>./scripts/up</code> in this phase starts only Postgres on port 41532 and runs migrate, then seed. <code>./scripts/down</code> stops the container and keeps the volume.</p>
+
+  <h3>Tables</h3>
+  <p><code>001_init.sql</code> runs inside a transaction. The migrator records the filename in <code>schema_migrations</code> after commit. A second boot skips a recorded file.</p>
+  <table>
+    <thead><tr><th>Table</th><th>Columns that matter</th></tr></thead>
+    <tbody>
+      <tr><td><code>users</code></td><td><code>id</code>, <code>email</code> unique, <code>name</code>, <code>role</code> in owner/member/viewer, <code>password_hash</code></td></tr>
+      <tr><td><code>sessions</code></td><td><code>id</code>, <code>user_id</code>, <code>token_hash</code> unique, <code>expires_at</code></td></tr>
+      <tr><td><code>boards</code></td><td><code>id</code>, <code>name</code>, <code>revision</code> bigint</td></tr>
+      <tr><td><code>cards</code></td><td><code>id</code>, <code>board_id</code>, <code>title</code>, <code>column</code>, <code>position</code> int, <code>author_id</code>, <code>version</code> bigint, <code>created_at</code>, <code>updated_at</code></td></tr>
+      <tr><td><code>comments</code></td><td><code>id</code>, <code>card_id</code>, <code>body</code>, <code>author_id</code>, <code>created_at</code>, <code>version</code> bigint</td></tr>
+      <tr><td><code>idempotency_keys</code></td><td><code>key</code>, <code>user_id</code>, <code>request_hash</code>, <code>status</code>, <code>response_json</code>, <code>created_at</code>. Unique on <code>(key, user_id)</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>Password hash is scrypt from <code>node:crypto</code>: <code>scrypt$16384$8$1$&lt;salt b64&gt;$&lt;hash b64&gt;</code>. The local seed password is <code>keel-local-only</code>.</p>
+
+  <h3>Seed rows</h3>
+  <p>Seed is idempotent. Running it twice leaves three users, one board, and twelve cards. It does not bump <code>boards.revision</code> when those ids already exist. Production runs the seed only when <code>KEEL_SEED=1</code>.</p>
+  <table>
+    <thead><tr><th>Id</th><th>Row</th></tr></thead>
+    <tbody>
+      <tr><td><code>user_ada</code></td><td>Ada, owner, <code>ada@keel.test</code></td></tr>
+      <tr><td><code>user_grace</code></td><td>Grace, member, <code>grace@keel.test</code></td></tr>
+      <tr><td><code>user_linus</code></td><td>Linus, viewer, <code>linus@keel.test</code></td></tr>
+      <tr><td><code>board_launch</code></td><td>name Launch, revision 1</td></tr>
+    </tbody>
+  </table>
+  <p>Cards <code>card_01</code> through <code>card_12</code>. Positions are 1024, 2048, 3072 within a column. Version is 1. Titles, in order: “Draft the README”, “Pin the ports”, “Seed the cast”, “Session cookie”, “Board layout”, “Refuse a viewer”, “Search titles”, “Comment on a card”, “Warm start budget”, “Doctor script”, “Two pipelines”, “Local password”. Columns cycle todo, doing, done, three of each, with the last three done. Authors alternate Ada and Grace. Linus authors nothing.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-01.mjs</code> loads <code>.env</code>, connects with <code>DATABASE_URL</code>, and asserts all of the following. Exit 1 on the first miss.</p>
+  <ol>
+    <li><code>schema_migrations</code> contains <code>001_init.sql</code>.</li>
+    <li>The three users, the board, and <code>card_01</code> … <code>card_12</code> exist.</li>
+    <li>Running the seed function a second time still returns exactly twelve cards and revision 1.</li>
+    <li><code>password_hash</code> for Grace verifies <code>keel-local-only</code> and rejects <code>wrong</code>.</li>
+    <li>No table contains the plaintext password.</li>
+  </ol>
+</section>
+
+<section id="p2">
+  <h2><span class="tag">Phase 2</span> Session and reads</h2>
+  <p>The API can sign a person in and return the board. Writes wait until phase 3. The web is still absent.</p>
+
+  <h3>Files</h3>
+<pre><code>apps/api/src/app.ts
+apps/api/src/routes/session.ts
+apps/api/src/routes/boards.ts
+apps/api/src/routes/health.ts
+packages/contracts/src/session.ts
+packages/contracts/src/board.ts</code></pre>
+  <p>Zod schemas live in <code>packages/contracts</code>. The route handlers import them. A body that fails the schema never reaches SQL.</p>
+
+  <h3>Routes</h3>
+  <h4><span class="verb">GET</span> /health</h4>
+  <p>No cookie. 200 <code>{ "ok": true }</code>. Does not touch Postgres.</p>
+
+  <h4><span class="verb">GET</span> /ready</h4>
+  <p>Runs <code>select 1</code>. 200 <code>{ "ok": true }</code>. 503 <code>{ "ok": false }</code> when the query throws.</p>
+
+  <h4><span class="verb">POST</span> /session</h4>
+  <p>Body:</p>
+<pre><code>{ "email": "grace@keel.test", "password": "keel-local-only" }</code></pre>
+  <p>201, and <code>Set-Cookie</code>:</p>
+<pre><code>{
+  "user": {
+    "id": "user_grace",
+    "email": "grace@keel.test",
+    "name": "Grace",
+    "role": "member"
+  }
+}</code></pre>
+  <p>Unknown email and wrong password both return 401 <code>invalid_credentials</code> with the message “Email or password is wrong.” The handler compares the hash in constant time. Email is trimmed and lowercased.</p>
+
+  <h4><span class="verb">GET</span> /session</h4>
+  <p>Cookie required. 200 is the same <code>user</code> object. 401 <code>unauthenticated</code> when the cookie is missing, unknown, or past <code>expires_at</code>. This is the call the shell makes on boot so a refresh restores the person without a second password prompt.</p>
+
+  <h4><span class="verb">DELETE</span> /session</h4>
+  <p>Deletes the session row and sets the cookie to empty. 204 with no body. An already-cleared cookie is also 204.</p>
+
+  <h4><span class="verb">GET</span> /boards/:id</h4>
+  <p>Cookie required. <code>:id</code> is <code>launch</code>, which the handler maps to <code>board_launch</code>. Any other id is 404 <code>not_found</code>.</p>
+  <p>200:</p>
+<pre><code>{
+  "board": { "id": "launch", "name": "Launch", "revision": 1 },
+  "columns": ["todo", "doing", "done"],
+  "cards": [
+    {
+      "id": "card_01",
+      "boardId": "launch",
+      "title": "Draft the README",
+      "column": "todo",
+      "position": 1024,
+      "authorId": "user_ada",
+      "createdAt": "2026-11-06T00:00:00.000Z",
+      "updatedAt": "2026-11-06T00:00:00.000Z",
+      "version": 1
+    }
+  ]
+}</code></pre>
+  <p><code>cards</code> is every card on the board, ordered by column in the order todo, doing, done, then by <code>position</code> ascending. The handler returns the full list on this route only. Later reads of the same board go through the changes route in phase 3.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-02.mjs</code> assumes <code>./scripts/up</code> has the API on <code>KEEL_API_ORIGIN</code>. It uses <code>fetch</code> and a cookie jar stored in memory.</p>
+  <ol>
+    <li><code>GET /health</code> is 200. <code>GET /ready</code> is 200.</li>
+    <li><code>POST /session</code> as Grace is 201 and the JSON has <code>role: "member"</code>. The response carries <code>set-cookie</code> with <code>HttpOnly</code> and <code>SameSite=Lax</code>.</li>
+    <li><code>POST /session</code> as <code>grace@keel.test</code> with password <code>wrong</code> is 401 <code>invalid_credentials</code>. <code>POST /session</code> as <code>nobody@keel.test</code> is the same status and the same message.</li>
+    <li><code>GET /session</code> with the cookie is Grace. Without the cookie it is 401.</li>
+    <li><code>GET /boards/launch</code> with the cookie returns revision 1 and twelve cards, four in each column, <code>card_01</code> first in todo.</li>
+    <li><code>GET /boards/missing</code> is 404. <code>GET /boards/launch</code> without a cookie is 401.</li>
+    <li><code>DELETE /session</code> is 204. A following <code>GET /session</code> is 401.</li>
+  </ol>
+</section>
+
+<section id="p3">
+  <h2><span class="tag">Phase 3</span> Writes and the changes feed</h2>
+  <p>Create, move, comment, and search. The changes route is how the client will avoid loading the board again.</p>
+
+  <h3>Authorization</h3>
+  <table>
+    <thead><tr><th>Action</th><th>Owner</th><th>Member</th><th>Viewer</th></tr></thead>
+    <tbody>
+      <tr><td>Read the board, open a card, search</td><td>yes</td><td>yes</td><td>yes</td></tr>
+      <tr><td>Create a card</td><td>yes</td><td>yes</td><td>403</td></tr>
+      <tr><td>Edit or move a card they authored</td><td>yes</td><td>yes</td><td>403</td></tr>
+      <tr><td>Edit or move someone else’s card</td><td>yes</td><td>403</td><td>403</td></tr>
+      <tr><td>Comment on any card</td><td>yes</td><td>yes</td><td>403</td></tr>
+    </tbody>
+  </table>
+  <p>A refused write does not change <code>revision</code>, <code>version</code>, or any row.</p>
+
+  <h3>Revision rules</h3>
+  <p>A successful create, move, title edit, or comment runs in one transaction. It increments <code>boards.revision</code> by 1 and sets the touched card’s <code>version</code>, and the new comment’s <code>version</code> when there is one, to that new revision. Positions are integers. A create uses <code>max(position) + 1024</code> in the target column, or 1024 when the column is empty. A move between two neighbors uses the integer midpoint. When the gap is 1, the handler renumbers that column to 1024, 2048, 3072 and returns every renumbered card in <code>shifted</code>.</p>
+
+  <h3><span class="verb">POST</span> /cards</h3>
+  <p>Headers: cookie, <code>Idempotency-Key</code>, <code>Origin</code> from the browser. Body:</p>
+<pre><code>{
+  "boardId": "launch",
+  "title": "Check the collector",
+  "column": "todo"
+}</code></pre>
+  <p>201:</p>
+<pre><code>{
+  "card": {
+    "id": "card_01JQZX8K0C3F8Y0A6S2N7M4P9R",
+    "boardId": "launch",
+    "title": "Check the collector",
+    "column": "todo",
+    "position": 4096,
+    "authorId": "user_grace",
+    "createdAt": "2026-11-06T06:40:00.000Z",
+    "updatedAt": "2026-11-06T06:40:00.000Z",
+    "version": 2
+  }
+}</code></pre>
+  <p>Title is trimmed. Empty or whitespace is 400 <code>invalid_title</code>. Longer than 200 is the same code. <code>column</code> outside the three names is 400 <code>invalid_body</code>. A missing <code>Idempotency-Key</code> is 400 <code>invalid_body</code>. The same key and the same user and the same body hash return the original 201 body and set <code>x-keel-idempotent: replay</code>, and they do not insert a second card. The same key with a different body hash is 409 <code>conflict</code>.</p>
+
+  <h3><span class="verb">PATCH</span> /cards/:id</h3>
+  <p>Header <code>If-Match</code> is the version the client holds. Body is one or both of <code>column</code> and <code>title</code>:</p>
+<pre><code>{ "column": "doing" }</code></pre>
+  <p>200:</p>
+<pre><code>{
+  "card": { "id": "card_01", "column": "doing", "position": 4096, "version": 3 },
+  "shifted": []
+}</code></pre>
+  <p>The card object in the response is a full <code>Card</code>, not a patch. <code>shifted</code> is a list of full cards whose positions changed because the column was renumbered. When <code>If-Match</code> is not the current version, the status is 409:</p>
+<pre><code>{
+  "error": {
+    "code": "conflict",
+    "message": "The card changed.",
+    "card": { "id": "card_01", "column": "todo", "version": 4 }
+  }
+}</code></pre>
+  <p><code>card</code> on a conflict is the full current card. The client replaces its copy with that object.</p>
+
+  <h3><span class="verb">POST</span> /cards/:id/comments</h3>
+  <p>Header <code>Idempotency-Key</code>. Body:</p>
+<pre><code>{ "body": "Queue is draining." }</code></pre>
+  <p>201:</p>
+<pre><code>{
+  "comment": {
+    "id": "cmt_01JQZX9M2E4G0Z1B7T3P8N5Q0S",
+    "cardId": "card_01",
+    "body": "Queue is draining.",
+    "authorId": "user_grace",
+    "createdAt": "2026-11-06T06:41:00.000Z"
+  },
+  "card": { "id": "card_01", "version": 4 }
+}</code></pre>
+  <p>The nested <code>card</code> is the full card after the version bump, so the store can replace that one card. Empty body is 400 <code>invalid_comment</code>. Replay follows the same idempotency rule as create.</p>
+
+  <h3><span class="verb">GET</span> /cards/:id</h3>
+  <p>Cookie required, any role. 200:</p>
+<pre><code>{
+  "card": { "id": "card_01", "title": "Draft the README", "version": 1 },
+  "comments": []
+}</code></pre>
+  <p>Comments are oldest first. This is the drawer fetch. The board list does not include comments.</p>
+
+  <h3><span class="verb">GET</span> /search</h3>
+  <p>Query <code>q</code>, trimmed, length 1 to 80. 200:</p>
+<pre><code>{
+  "query": "readme",
+  "cards": [
+    { "id": "card_01", "title": "Draft the README", "column": "todo", "version": 1 }
+  ]
+}</code></pre>
+  <p>Match is case-insensitive substring on title, limit 20, ordered by <code>updated_at</code> descending. Each item is a full card. An empty <code>q</code> is 400 <code>invalid_body</code>. Search does not change revision.</p>
+
+  <h3><span class="verb">GET</span> /boards/:id/changes</h3>
+  <p>Query <code>since</code>, an integer, the revision the client already applied. 200:</p>
+<pre><code>{
+  "revision": 4,
+  "cards": [],
+  "comments": [],
+  "removedCardIds": []
+}</code></pre>
+  <p>When the board revision is still <code>since</code>, the three arrays are empty. The client keeps every card object it already holds. When the revision has moved, <code>cards</code> contains only cards whose <code>version</code> is greater than <code>since</code>, <code>comments</code> contains only comments whose <code>version</code> is greater than <code>since</code>, and <code>removedCardIds</code> stays empty in this version of Keel because cards are not deleted. <code>since</code> missing, negative, or greater than the current revision is 400 <code>invalid_body</code>.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-03.mjs</code></p>
+  <ol>
+    <li>Sign in as Grace. <code>POST /cards</code> with the body above and a fresh idempotency key. Status 201. Board revision is 2. A second POST with the same key and body returns the same card id and the header <code>x-keel-idempotent: replay</code>. Card count is 13, not 14.</li>
+    <li><code>POST /cards</code> with <code>"title": "  "</code> is 400 <code>invalid_title</code>. Revision is unchanged.</li>
+    <li>Sign in as Linus. <code>POST /cards</code> is 403 <code>forbidden</code>. <code>PATCH /cards/card_01</code> with <code>If-Match: 1</code> and <code>{ "column": "doing" }</code> is 403. <code>card_01</code> is still in todo at version 1.</li>
+    <li>Sign in as Grace. <code>PATCH /cards/card_01</code> is 403, because Ada authored it. Sign in as Ada. The same PATCH with <code>If-Match: 1</code> is 200 and the card’s column is doing. Repeat the PATCH with <code>If-Match: 1</code>. Status 409 <code>conflict</code>, and <code>error.card.version</code> is the version from the 200.</li>
+    <li>Ada <code>POST /cards/card_01/comments</code> with body “Queue is draining.” Status 201. <code>GET /cards/card_01</code> returns that comment.</li>
+    <li><code>GET /search?q=readme</code> includes <code>card_01</code> and does not include “Pin the ports”.</li>
+    <li>Remember revision R before a create. After the create, <code>GET /boards/launch/changes?since=R</code> returns one card, the new one, and an empty comment list. <code>GET /boards/launch/changes?since=</code> the new revision returns empty arrays.</li>
+  </ol>
+</section>
+
+<section id="p4">
+  <h2><span class="tag">Phase 4</span> Web stores and screens</h2>
+  <p>The board is a single-page app. The document loads once. After that, sign-in, opening a card, creating, moving, commenting, and searching update local stores. A screen reads the store. It asks the network only for the slice it does not have, or for the revision delta.</p>
+
+  <h3>Document and routes</h3>
+  <p>Vite builds one <code>index.html</code>. The dev server and, later, the image rewrite every app path to that file so a hard refresh on <code>/boards/launch</code> boots the app. Inside the running app, links use the client router. No link sets <code>window.location</code> to a Keel path. No handler calls <code>location.reload</code>.</p>
+  <p>Routes, all children of one shell that stays mounted:</p>
+  <table>
+    <thead><tr><th>Path</th><th>What mounts</th><th>What it reads</th></tr></thead>
+    <tbody>
+      <tr><td><code>/sign-in</code></td><td>Sign-in form</td><td><code>sessionStore</code></td></tr>
+      <tr><td><code>/boards/:boardId</code></td><td>Three columns</td><td><code>boardStore</code> for that id</td></tr>
+      <tr><td><code>/boards/:boardId/cards/:cardId</code></td><td>Drawer over the same board</td><td><code>boardStore</code> for the card, <code>commentStore</code> for the thread</td></tr>
+      <tr><td><code>/search</code></td><td>Search field and results</td><td><code>searchStore</code></td></tr>
+    </tbody>
+  </table>
+  <p>The drawer is a child route. Opening it does not unmount the board, and the board loader’s <code>shouldRevalidate</code> returns false when the board id is unchanged. Typing in search does not subscribe the board to <code>searchStore</code>, so a keystroke does not rerender the columns.</p>
+
+  <h3>Stores</h3>
+  <p>Four modules under <code>apps/web/src/store/</code>. Each is a plain object plus <code>subscribe</code>, implemented with <code>useSyncExternalStore</code>. There is no global refetch.</p>
+  <table>
+    <thead><tr><th>Store</th><th>Holds</th><th>Written by</th></tr></thead>
+    <tbody>
+      <tr><td><code>sessionStore</code></td><td><code>unknown</code>, <code>anonymous</code>, or <code>user</code></td><td><code>GET /session</code> on boot, <code>POST /session</code>, <code>DELETE /session</code></td></tr>
+      <tr><td><code>boardStore</code></td><td>One snapshot per board id: cards by id, revision</td><td>The first <code>GET /boards/:id</code>, then mutation responses and the changes feed</td></tr>
+      <tr><td><code>commentStore</code></td><td>Comments by card id, plus a loaded flag</td><td><code>GET /cards/:id</code> the first time that drawer opens, then the comment POST and the changes feed</td></tr>
+      <tr><td><code>searchStore</code></td><td>Results keyed by the trimmed query</td><td><code>GET /search</code></td></tr>
+    </tbody>
+  </table>
+  <p>Snapshots are replaced only for the slice that changed. <code>applyCard</code> writes that id and bumps the revision, and it keeps the same object references for every other card. <code>applyChanges</code> with empty arrays returns the identical snapshot reference, so a poll that found nothing does not rerender. A column selector returns the same array reference when no card in that column changed.</p>
+
+  <h3>What the network does</h3>
+  <table>
+    <thead><tr><th>Person does</th><th>Request</th><th>Store write</th></tr></thead>
+    <tbody>
+      <tr><td>Opens the app</td><td><code>GET /session</code></td><td>session</td></tr>
+      <tr><td>Lands on Launch, store empty</td><td><code>GET /boards/launch</code></td><td>replace that board snapshot</td></tr>
+      <tr><td>Lands on Launch, store has a revision</td><td><code>GET /boards/launch/changes?since=</code></td><td>merge, or no-op when arrays are empty</td></tr>
+      <tr><td>Submits sign-in</td><td><code>POST /session</code></td><td>session user, then client navigation to <code>/boards/launch</code></td></tr>
+      <tr><td>Creates a card</td><td><code>POST /cards</code> only</td><td><code>applyCard</code> from the response. No board GET.</td></tr>
+      <tr><td>Drops a card on a column</td><td><code>PATCH /cards/:id</code> only</td><td>replace that card; apply each card in <code>shifted</code></td></tr>
+      <tr><td>PATCH returns 409</td><td>none further</td><td>replace the card with <code>error.card</code>. The drawer shows the stored column.</td></tr>
+      <tr><td>Opens a drawer, comments not loaded</td><td><code>GET /cards/:id</code></td><td>comment list for that id. Board cards stay.</td></tr>
+      <tr><td>Opens a drawer, comments loaded</td><td>none</td><td>read <code>commentStore</code></td></tr>
+      <tr><td>Sends a comment</td><td><code>POST /cards/:id/comments</code></td><td>append the comment, <code>applyCard</code> the returned card</td></tr>
+      <tr><td>Types a search</td><td><code>GET /search?q=</code> after 200 ms of quiet, if that query is not stored</td><td><code>searchStore</code> only</td></tr>
+      <tr><td>Tab is visible</td><td><code>GET /boards/launch/changes?since=</code> every 15 seconds</td><td>merge. Unchanged cards keep their references.</td></tr>
+    </tbody>
+  </table>
+  <p>Create and comment generate the idempotency key in the client and keep it on the pending mutation until the response arrives. A double submit reuses the key. A 409 on create from a key reuse with a different body surfaces as an error on the form and leaves the store as it was. While a mutation is in flight the card row shows the pending title or column from a pending map, and the pending entry is deleted when the response is applied. A failed 400 removes the pending entry and shows the message from <code>error.message</code>.</p>
+  <p>The poll pauses when <code>document.visibilityState</code> is <code>hidden</code> and runs once immediately when the tab becomes visible.</p>
+
+  <h3>Screens</h3>
+  <ul>
+    <li>Sign-in: email, password, submit. 401 shows “Email or password is wrong.” The form does not clear the password on that error.</li>
+    <li>Launch: three columns. Each card is a button that navigates to the child route. Dragging a card the person may move calls PATCH on drop. A card they may not move does not start a drag.</li>
+    <li>Drawer: title, column, comment list, comment box. Title edit on blur sends PATCH with the stored version. Closing the drawer is a client navigation back to the board. The comment list stays in <code>commentStore</code>.</li>
+    <li>Search: the field is controlled by <code>searchStore.query</code>. Results render the stored cards for that query. Choosing a result navigates to the drawer and does not clear the board store.</li>
+    <li>The shell shows the person’s name from <code>sessionStore</code> and a sign-out control that calls <code>DELETE /session</code> and then navigates to <code>/sign-in</code>.</li>
+  </ul>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-04.mjs</code> runs two files and fails if either fails.</p>
+  <p><code>apps/web/src/store/board.test.ts</code>, Vitest, no browser:</p>
+  <ol>
+    <li>Load a snapshot of twelve cards at revision 1. <code>applyChanges</code> with empty arrays returns the same snapshot reference and the same todo-array reference.</li>
+    <li><code>applyCard</code> of a new todo card returns a new snapshot. The doing-array reference is unchanged. The new card is last in todo.</li>
+    <li><code>applyCard</code> that changes <code>card_01</code> from todo to doing removes it from todo and appends it to doing. <code>card_02</code>’s object reference is unchanged.</li>
+    <li>A 409-shaped replace writes <code>error.card</code> over the stale object.</li>
+  </ol>
+  <p><code>apps/web/e2e/board.spec.ts</code>, Playwright, one navigation:</p>
+  <ol>
+    <li>Go to <code>/sign-in</code>. After sign-in as Grace, <code>performance.getEntriesByType("navigation")</code> has length 1 for the rest of the test.</li>
+    <li>Record requests. Creating “Check the collector” sends one <code>POST /cards</code> and no <code>GET /boards/launch</code> after the first load. The new title is on the page.</li>
+    <li>Opening that card sends one <code>GET /cards/:id</code>. Closing and opening it again sends no second GET.</li>
+    <li>Moving the card sends one PATCH and no board GET. A search for <code>collector</code> sends <code>GET /search</code> and no board GET.</li>
+    <li>As a second cookie, Ada moves <code>card_02</code> through the API. Within 16 seconds the Grace page shows <code>card_02</code> in the new column, and the request log shows <code>/changes</code> and not a full <code>GET /boards/launch</code>.</li>
+  </ol>
+</section>
+
+<section id="p5">
+  <h2><span class="tag">Phase 5</span> Telemetry</h2>
+  <p>The API records a metric, a log, and a span for each request. The collector runs in debug. The browser proxy waits for phase 8.</p>
+
+  <h3>Files</h3>
+<pre><code>packages/otel/src/index.ts
+packages/catalog/metrics.yaml
+collector/base.yaml
+collector/vendors/debug.yaml
+scripts/render-collector.ts</code></pre>
+
+  <h3>What each request records</h3>
+  <p>After the handler returns, and also when it returns a 4xx or 5xx, the API emits:</p>
+  <ul>
+    <li>Counter <code>http.server.requests</code>, plus one.</li>
+    <li>Histogram <code>http.server.request.duration</code>, in milliseconds.</li>
+    <li>A log line with the method, the route template, the status, and the run attributes that were present.</li>
+    <li>A server span named with the route template.</li>
+  </ul>
+  <p>Attributes on all three: <code>http.route</code> is the template, <code>/cards/:id</code>, never the raw card id. Also <code>http.request.method</code>, <code>http.response.status_code</code>, <code>service.name=keel-api</code>, <code>service.version</code> the git sha, <code>deployment.environment</code> from <code>KEEL_ENV</code>, <code>keel.signal=app</code>. Run headers, when present, become <code>keel.run_id</code>, <code>keel.actor</code>, <code>keel.journey</code>, <code>keel.step</code>, <code>keel.pace</code>. The exporter drops <code>cookie</code> and <code>authorization</code> before the batch leaves the process.</p>
+  <p>Business counters, each plus one, same attributes, on success only:</p>
+  <ul>
+    <li><code>keel.card.created</code> on 201 from <code>POST /cards</code>.</li>
+    <li><code>keel.card.moved</code> on 200 from <code>PATCH /cards/:id</code> when <code>column</code> changed.</li>
+    <li><code>keel.comment.created</code> on 201 from the comment route.</li>
+  </ul>
+  <p>The API may emit a name only when <code>packages/catalog/metrics.yaml</code> lists it. A name that is not listed fails the process boot.</p>
+  <p>Header <code>x-keel-fault: once</code> on <code>POST /cards</code>, when the process has not thrown yet for that header value, throws after the card is saved and produces a 500. The card remains. A second request with the header does not throw. The default, with the header absent, never throws.</p>
+
+  <h3>Collector, debug</h3>
+  <p><code>./scripts/up</code> renders <code>generated/collector.yaml</code> from <code>collector/base.yaml</code> plus <code>collector/vendors/debug.yaml</code> and starts the collector on 4417 and 4418. The app pipeline and the infra pipeline both print to the collector log. An item with no <code>keel.signal</code> is dropped and counted.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-05.mjs</code> plus a Vitest file that installs an in-memory exporter.</p>
+  <ol>
+    <li>The in-memory test performs <code>POST /cards</code> and finds a span whose route is <code>/cards</code>, a histogram point, a request counter, and <code>keel.card.created</code>. A test that substitutes a raw card id for <code>http.route</code> fails.</li>
+    <li>A viewer’s PATCH produces status 403 on the counter and does not produce <code>keel.card.moved</code>.</li>
+    <li>The log record has no <code>cookie</code> field.</li>
+    <li>With the stack up and the vendor on debug, one create as Grace with <code>x-keel-run-id: run_phase5</code> makes the collector log contain that run id on the app pipeline.</li>
+    <li><code>doctor</code> prints both pipelines.</li>
+  </ol>
+</section>
+
+<section id="p6">
+  <h2><span class="tag">Phase 6</span> Accounts and prove</h2>
+  <p>OpenObserve is the first vendor. Two orgs, <code>keel-app</code> and <code>keel-infra</code>. The prove script is the phase gate.</p>
+
+  <h3>Config</h3>
+  <p><code>KEEL_COLLECTOR_VENDOR=openobserve</code> selects <code>collector/vendors/openobserve.yaml</code>. The fragment has two exporters. The app exporter uses <code>KEEL_VENDOR_APP_ENDPOINT</code> and <code>KEEL_VENDOR_APP_API_KEY</code>. The infra exporter uses the infra pair. Routing is on <code>keel.signal</code>. An empty key leaves that pipeline on the debug log. <code>doctor</code> refuses to start export when both keys are non-empty and equal.</p>
+  <p>Host CPU, memory, Postgres connections, database size, and collector queue are scraped by the collector about every 15 seconds, marked <code>keel.signal=infra</code>, with no run id.</p>
+
+  <h3>Prove</h3>
+  <p><code>pnpm prove --run &lt;id&gt;</code> queries the app org for a log and a span carrying that run id, and queries the infra org for a log carrying that run id. It exits 0 only when the app org has both and the infra org has neither. It also checks that <code>http.server.request.duration</code> is queryable in the app org. With the vendor on debug, prove reads the collector log instead and prints <code>not exported</code>, and that path is what this phase’s script asserts in CI.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-06.mjs</code></p>
+  <ol>
+    <li>Render the config with an app key set and the infra key empty. The rendered file contains one OpenObserve exporter and one debug exporter. A card create’s run id appears in the app destination and the CPU sample appears on the debug log.</li>
+    <li>Render with the same key in both slots. The render process exits non-zero and names the duplicate.</li>
+    <li>Debug prove for a fresh run id exits 0 and prints <code>not exported</code>.</li>
+    <li>When <code>KEEL_COLLECTOR_VENDOR=openobserve</code> and both keys are set, prove for a demo run id exits 0. Otherwise the script prints <code>skipped: no vendor</code> and exits 0.</li>
+  </ol>
+</section>
+
+<section id="p7">
+  <h2><span class="tag">Phase 7</span> Studio and computer</h2>
+  <p>Studio is its own origin on port 4102, its own SPA, and its own store. Starting a run does not reload Studio. The runner plays journeys over HTTP.</p>
+
+  <h3>Studio routes</h3>
+  <p>Studio’s API is on the Studio origin. The browser talks only to it. The runner talks to Keel.</p>
+  <h4><span class="verb">GET</span> /targets</h4>
+  <p>200, from the committed file <code>apps/studio/targets.json</code>:</p>
+<pre><code>{
+  "targets": [
+    { "name": "local", "api": "http://127.0.0.1:4101", "web": "http://127.0.0.1:4100", "host": "127.0.0.1" },
+    { "name": "local-prod", "api": "http://127.0.0.1:4101", "web": "http://127.0.0.1:4100", "host": "127.0.0.1" },
+    { "name": "production", "api": "https://keel.example", "web": "https://keel.example", "host": "keel.example" }
+  ]
+}</code></pre>
+  <p>The production host in the committed file is the real hostname when the team has one. A start whose URL host disagrees with the named target is 400 <code>invalid_body</code> and the runner is not spawned.</p>
+
+  <h4><span class="verb">POST</span> /runs</h4>
+<pre><code>{
+  "target": "local",
+  "mode": "computer",
+  "journey": "create-card",
+  "pace": "demo",
+  "seed": "phase7-seed",
+  "confirm": ""
+}</code></pre>
+  <p><code>pace</code> is <code>demo</code>, <code>office</code>, <code>real-time</code>, or <code>machine</code>. <code>confirm</code> must be the string <code>production</code> when the target is production, and must be empty otherwise. Production starts at one actor and ten minutes. 201:</p>
+<pre><code>{
+  "run": {
+    "id": "run_01JQZY0N3F5H1A2C8U4Q9P6R1T",
+    "target": "local",
+    "mode": "computer",
+    "journey": "create-card",
+    "pace": "demo",
+    "seed": "phase7-seed",
+    "scale": 10,
+    "status": "running"
+  }
+}</code></pre>
+
+  <h4><span class="verb">POST</span> /runs/:id/pause and /runs/:id/stop</h4>
+  <p>Empty body. 200 with the run object, <code>status</code> of <code>paused</code> or <code>stopped</code>. Stop deletes the runner’s session cookies.</p>
+
+  <h4><span class="verb">GET</span> /runs/:id/events</h4>
+  <p>Server-sent events. Each event is one JSON object:</p>
+<pre><code>{
+  "at": "2026-11-06T06:50:00.000Z",
+  "actor": "grace",
+  "step": "add-card",
+  "status": 201,
+  "errorCount": 0
+}</code></pre>
+  <p>Studio’s <code>runStore</code> appends events. The page does not poll the document and does not refetch <code>/targets</code> on each event. The live strip reads <code>runStore</code>.</p>
+
+  <h3>Journeys shipped in this phase</h3>
+  <p><code>sign-in</code>, <code>read-board</code>, <code>create-card</code>, <code>forbidden-move</code>. Each file has a <code>ui</code> block and an <code>api</code> block and a <code>thinkMs</code> range. The computer executor runs the <code>api</code> block. <code>create-card</code> signs in as Grace and posts the body from phase 3. <code>forbidden-move</code> signs in as Linus and expects 403.</p>
+  <p>The runner’s clock is seeded. Demo is one actor, scale 10, about three minutes. Office is Ada, Grace, and Linus, scale 10, about fifteen minutes. Arrivals are a Poisson draw, session length is lognormal, and about three percent of journeys stop before the last write. About two percent take the empty-title or viewer-move path. The same seed and the same pace produce the same step list.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-07.mjs</code></p>
+  <ol>
+    <li>Start two computer runs against local with seed <code>phase7-seed</code>, pace <code>demo</code>, journey <code>create-card</code>. The step lists are equal.</li>
+    <li>A run whose target is local and whose API host is not <code>127.0.0.1</code> is refused, and no request reaches that host.</li>
+    <li><code>POST /runs</code> with <code>target: "production"</code> and an empty <code>confirm</code> is 400. With <code>confirm: "production"</code> the accepted run reports one actor.</li>
+    <li>The Studio page, after start, still has one navigation entry. The strip shows the run id and the scale <code>10</code> as text, not inside a tooltip.</li>
+    <li><code>forbidden-move</code> ends with HTTP 403 and <code>card_01</code> still in its previous column.</li>
+  </ol>
+</section>
+
+<section id="p8">
+  <h2><span class="tag">Phase 8</span> Person</h2>
+  <p>The same YAML files run in a browser. One actor. Headless by default.</p>
+
+  <h3>Executor</h3>
+  <p><code>mode: "person"</code> on <code>POST /runs</code> starts Playwright. One browser context for the actor. The <code>ui</code> block is the source of clicks: <code>goto</code>, <code>see</code>, <code>click</code> by visible label, <code>fill</code> by label at 40 to 120 ms per character. The runner attaches the run headers to the browser context so the API records the run id. A failed step writes a screenshot under <code>generated/person/&lt;runId&gt;/</code>. Headed is <code>"headed": true</code> on the run body.</p>
+
+  <h3><span class="verb">POST</span> /otel</h3>
+  <p>This phase adds the browser proxy on the Keel API. The web sends OTLP to <code>POST /otel</code> on the API origin. The handler forwards the body to the collector and holds no vendor key. The browser span for a click carries <code>keel.signal=app</code>. Cookie and authorization are stripped before forward.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-08.mjs</code> runs <code>create-card</code> headless against the local web.</p>
+  <ol>
+    <li>The journey passes. The card title is visible without a second document load. Navigation entries on that page stay at 1 after sign-in.</li>
+    <li>A journey file with a <code>ui</code> block and no <code>api</code> block fails <code>pnpm journeys:check</code> before a browser opens.</li>
+    <li>A step that looks for a label that is not on the page fails, and the screenshot file exists.</li>
+    <li>The collector log for the run id contains the server span and the browser span, both <code>keel.signal=app</code>.</li>
+  </ol>
+</section>
+
+<section id="p9">
+  <h2><span class="tag">Phase 9</span> Skill</h2>
+  <p>The skill at <code>skills/keel-journey/SKILL.md</code> writes one journey file. It does not start a run, does not open a browser, and does not hold a vendor key.</p>
+
+  <h3>What it writes</h3>
+  <p>In this phase it writes <code>comment</code> and <code>search</code> if they are missing. <code>comment</code> ends with <code>POST /cards/:id/comments</code> and body <code>{ "body": "Seen on the board." }</code>, expects 201, and names <code>keel.comment.created</code> in the journey’s metric list. <code>search</code> expects <code>GET /search?q=readme</code> to include <code>card_01</code>. Both files have <code>ui</code> and <code>api</code> blocks. The <code>ui</code> labels are copied from the buttons and fields that exist in the web app.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-09.mjs</code> runs <code>pnpm journeys:check</code>.</p>
+  <ol>
+    <li>Both files validate.</li>
+    <li>With the API up, the check executes each <code>api</code> block once. <code>comment</code> returns 201. <code>search</code> returns <code>card_01</code>.</li>
+    <li>A second file whose id is <code>create-card</code> fails the check as a duplicate.</li>
+    <li>The skill directory contains no vendor key and no call to <code>POST /runs</code>.</li>
+  </ol>
+</section>
+
+<section id="p10">
+  <h2><span class="tag">Phase 10</span> Local-prod</h2>
+  <p>The same board, API, Studio, Postgres, and collector run from images. Source mounts are absent. File watch is absent.</p>
+
+  <h3>Images</h3>
+  <p>Dockerfiles for <code>keel-web</code>, <code>keel-api</code>, and <code>keel-studio</code>. The web image serves the built SPA and falls back to <code>index.html</code> for client routes. The API image runs <code>node</code> on the compiled output and migrates on boot. Compose healthchecks gate order: Postgres, then API <code>/ready</code>, then web and Studio. <code>./scripts/up prodlike</code> builds when the image is missing or <code>KEEL_REBUILD=1</code>. <code>KEEL_ENV=local-prod</code>.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-10.mjs</code></p>
+  <ol>
+    <li><code>./scripts/up prodlike</code> reaches <code>/ready</code>. The phase records the warm time and fails when it is over 30 seconds after the images already exist.</li>
+    <li>Phase 2 and phase 3 scripts pass against this origin.</li>
+    <li>Phase 4’s Playwright spec passes against the image. Navigation entries stay at 1, and a create still does not refetch the board.</li>
+    <li>Changing a source file and waiting 5 seconds leaves the served bundle hash unchanged. <code>KEEL_REBUILD=1</code> changes the hash.</li>
+    <li>A create with a run id is found by the debug prove path, with <code>deployment.environment=local-prod</code>.</li>
+  </ol>
+</section>
+
+<section id="p11">
+  <h2><span class="tag">Phase 11</span> Production</h2>
+  <p>One Linux server runs the same compose file. GitHub Actions builds, pushes, and rolls forward. Rollback is the previous image tag.</p>
+
+  <h3>Workflows</h3>
+  <p><code>ci.yml</code> on pull requests runs <code>pnpm check</code>, builds the images without pushing, and validates the rendered collector config. <code>deploy.yml</code> on <code>main</code> pushes to the registry with OIDC, SSHes with a pinned <code>known_hosts</code> entry, runs <code>docker compose pull</code> and <code>up -d</code>, and curls the public <code>/ready</code>. It records the image tag. <code>workflow_dispatch</code> with input <code>image_tag</code> redeploys that tag. Secrets live in the GitHub environment <code>production</code> and are written to a root-only file on the server. The workflow does not start a Studio run.</p>
+  <p><code>doctor</code> fails when <code>KEEL_ENV=production</code> and <code>KEEL_SEED_PASSWORD</code> is still <code>keel-local-only</code>. Studio’s production target host is not a loopback address.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-11.mjs</code> runs in CI as a static check, and on the server only when <code>KEEL_ENV=production</code> is set in the environment where the script is invoked.</p>
+  <ol>
+    <li>The workflow files exist. <code>deploy.yml</code> contains the pinned host key input and the <code>/ready</code> curl, and it contains no <code>POST /runs</code>.</li>
+    <li>A fixture <code>.env</code> with the local seed password and <code>KEEL_ENV=production</code> makes <code>doctor</code> exit non-zero.</li>
+    <li>When the script is pointed at a production origin, <code>GET /ready</code> is 200 and <code>GET /session</code> without a cookie is 401. The SPA entry is served for <code>/boards/launch</code> with content type HTML.</li>
+    <li>The dispatch input <code>image_tag</code> is present. The script does not itself redeploy.</li>
+  </ol>
+</section>
+
+<section id="p12">
+  <h2><span class="tag">Phase 12</span> Other vendors</h2>
+  <p>Datadog and Sentry are collector fragments. Application code stays as it is. <code>doctor</code> records which of metrics, logs, and traces each endpoint accepted.</p>
+
+  <h3>Fragments</h3>
+  <p><code>collector/vendors/datadog.yaml</code> and <code>collector/vendors/sentry.yaml</code> follow the same two-exporter shape as OpenObserve. Switching vendor is <code>KEEL_COLLECTOR_VENDOR</code> plus a restart. Sentry’s traces and logs are the dependable path. When the metrics export is refused, <code>doctor</code> writes the refusal and does not copy the metric onto the other account.</p>
+
+  <h3>Test script</h3>
+  <p><code>scripts/phases/phase-12.mjs</code></p>
+  <ol>
+    <li>Rendering each of <code>debug</code>, <code>openobserve</code>, <code>datadog</code>, and <code>sentry</code> produces a config that names both pipelines. <code>otelcol validate</code> accepts each rendered file with empty keys substituted by a placeholder the validator allows, or the script skips validate for a fragment that requires a live key and says so.</li>
+    <li>A unit test feeds one app item and one infra item through the router and asserts they leave on different exporters.</li>
+    <li>When a vendor’s keys are present, <code>doctor</code>’s sample line lists accepted or refused for metrics, logs, and traces. A refusal is a passing doctor with that line present. When keys are absent, the script prints <code>skipped: no vendor</code> and exits 0.</li>
+  </ol>
+</section>
+
+<footer>
+  Keel implementation. Twelve phases, one script each. The board keeps a local store and loads the revision delta. Later phases rehearse that board. They do not replace it.
+</footer>
+</main>
+</div>
+</body>
+</html>

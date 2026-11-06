@@ -1,0 +1,46 @@
+id: create-card
+title: Create a card on Launch
+feature: cards.create
+actor: grace
+actors: [member, owner]
+metrics: [keel.card.created]
+steps:
+  - id: sign-in
+    ui:
+      - { goto: /sign-in }
+      - { see: Sign in }
+      - { fill: { label: Email, text: grace@keel.test } }
+      - { fill: { label: Password, text: keel-local-only } }
+      - { click: Sign in }
+      - { see: Launch }
+    api:
+      method: POST
+      path: /session
+      body:
+        email: grace@keel.test
+        password: keel-local-only
+      expect: 201
+    thinkMs: { min: 400, max: 1600 }
+  - id: open-board
+    ui:
+      - { goto: /boards/launch }
+      - { see: Launch }
+    api:
+      method: GET
+      path: /boards/launch
+      expect: 200
+    thinkMs: { min: 600, max: 2500 }
+  - id: add-card
+    ui:
+      - { fill: { label: New card, text: Check the collector } }
+      - { click: Add }
+      - { see: Check the collector }
+    api:
+      method: POST
+      path: /cards
+      body:
+        boardId: launch
+        title: Check the collector
+        column: todo
+      expect: 201
+    thinkMs: { min: 800, max: 4000 }

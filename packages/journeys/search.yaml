@@ -1,0 +1,34 @@
+id: search
+title: Search card titles
+feature: search
+actor: linus
+actors: [owner, member, viewer]
+steps:
+  - id: sign-in
+    ui:
+      - { goto: /sign-in }
+      - { see: Sign in }
+      - { fill: { label: Email, text: linus@keel.test } }
+      - { fill: { label: Password, text: keel-local-only } }
+      - { click: Sign in }
+      - { see: Launch }
+    api:
+      method: POST
+      path: /session
+      body:
+        email: linus@keel.test
+        password: keel-local-only
+      expect: 201
+    thinkMs: { min: 400, max: 1400 }
+  - id: search
+    ui:
+      - { fill: { label: Search, text: readme } }
+      - { see: Draft the README }
+      - { goto: /search }
+      - { see: Search }
+    api:
+      method: GET
+      path: /search?q=readme
+      expect: 200
+      includes: card_01
+    thinkMs: { min: 500, max: 2000 }

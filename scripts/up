@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [[ ! -f .env ]]; then
+  echo "missing .env. Run ./scripts/init first." >&2
+  exit 1
+fi
+
+set -a
+# shellcheck disable=SC1091
+source .env
+set +a
+
+mkdir -p generated
+
+stop_pid() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local old
+  old="$(cat "$file")"
+  if kill -0 "$old" 2>/dev/null; then
+    kill "$old" 2>/dev/null || true
+    for _ in $(seq 1 30); do
+      kill -0 "$old" 2>/dev/null || break
+      sleep 0.1
+    done
+  fi
+  rm -f "$file"
+}
+
+node scripts/render-collector.ts
+compose=(docker compose -f infra/compose.yaml)
+if [[ "${1:-}" == "--with-openobserve" || "${2:-}" == "--with-openobserve" ]]; then
+  compose+=(--profile openobserve)
+fi
+
+if [[ "${1:-}" == "prodlike" ]]; then
+  stop_pid generated/studio.pid
+  stop_pid generated/web.pid
+  stop_pid generated/api.pid
+  "${compose[@]}" up -d --wait postgres
+  if [[ "${2:-}" == "--with-openobserve" ]]; then
+    "${compose[@]}" up -d openobserve
+  fi
+  "${compose[@]}" up -d --no-deps collector
+  if [[ "${KEEL_REBUILD:-}" == "1" ]]; then
+    "${compose[@]}" up -d --wait --build --force-recreate api web studio
+  elif ! docker image inspect keel-api:local >/dev/null 2>&1 \
+    || ! docker image inspect keel-web:local >/dev/null 2>&1 \
+    || ! docker image inspect keel-studio:local >/dev/null 2>&1; then
+    "${compose[@]}" up -d --wait --build api web studio
+  else
+    "${compose[@]}" up -d --wait --no-build api web studio
+  fi
+  exit 0
+fi
+
+"${compose[@]}" stop api web studio >/dev/null 2>&1 || true
+"${compose[@]}" up -d --wait postgres
+if [[ "${1:-}" == "--with-openobserve" ]]; then
+  "${compose[@]}" up -d openobserve
+fi
+"${compose[@]}" up -d --force-recreate --no-deps collector
+node apps/api/src/db/migrate.ts
+node apps/api/src/db/seed.ts
+
+stop_pid generated/api.pid
+python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+  node apps/api/src/app.ts > generated/api.log 2>&1 &
+echo $! > generated/api.pid
+
+ready=0
+for _ in $(seq 1 50); do
+  if curl -sf "${KEEL_API_ORIGIN}/health" >/dev/null; then
+    ready=1
+    break
+  fi
+  sleep 0.1
+done
+if [[ "$ready" != 1 ]]; then
+  echo "api did not answer ${KEEL_API_ORIGIN}/health" >&2
+  cat generated/api.log >&2 || true
+  exit 1
+fi
+
+collector_ready=0
+for _ in $(seq 1 50); do
+  if curl -s -o /dev/null --max-time 1 http://127.0.0.1:4418/v1/logs; then
+    collector_ready=1
+    break
+  fi
+  sleep 0.2
+done
+if [[ "$collector_ready" != 1 ]]; then
+  echo "collector did not answer 127.0.0.1:4418" >&2
+  docker compose -f infra/compose.yaml logs collector >&2 || true
+  exit 1
+fi
+
+stop_pid generated/web.pid
+python3 -c 'import os, sys; os.chdir("apps/web"); os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+  node ./node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4100 --strictPort \
+  > generated/web.log 2>&1 &
+echo $! > generated/web.pid
+
+web_ready=0
+for _ in $(seq 1 100); do
+  if curl -sf "http://127.0.0.1:4100" >/dev/null; then
+    web_ready=1
+    break
+  fi
+  sleep 0.2
+done
+if [[ "$web_ready" != 1 ]]; then
+  echo "web did not answer http://127.0.0.1:4100" >&2
+  cat generated/web.log >&2 || true
+  exit 1
+fi
+
+stop_pid generated/studio.pid
+python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+  node apps/studio/src/server.ts > generated/studio.log 2>&1 &
+echo $! > generated/studio.pid
+
+studio_ready=0
+for _ in $(seq 1 50); do
+  if curl -sf "${KEEL_STUDIO_ORIGIN:-http://127.0.0.1:4102}/targets" >/dev/null; then
+    studio_ready=1
+    break
+  fi
+  sleep 0.2
+done
+if [[ "$studio_ready" != 1 ]]; then
+  echo "studio did not answer ${KEEL_STUDIO_ORIGIN:-http://127.0.0.1:4102}/targets" >&2
+  cat generated/studio.log >&2 || true
+  exit 1
+fi

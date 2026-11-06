@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keel — plan</title>
+<style>
+  :root {
+    --ink: #1c1915;
+    --muted: #5e584e;
+    --faint: #8a8376;
+    --line: #e4ddd2;
+    --line-strong: #d3cbbf;
+    --paper: #f6f3ee;
+    --sheet: #fffcf8;
+    --accent: #0e4b48;
+    --accent-soft: #e5f0ef;
+    --warn: #8a3d2f;
+    --warn-soft: #f8ece8;
+    --ok: #1f5c38;
+    --ok-soft: #e7f2eb;
+    --nav: 232px;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 18px;
+    line-height: 1.55;
+  }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  .layout {
+    display: grid;
+    grid-template-columns: var(--nav) minmax(0, 1fr);
+    max-width: 1180px;
+    margin: 0 auto;
+    align-items: start;
+  }
+  nav {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: auto;
+    padding: 28px 18px 40px 8px;
+    font-family: var(--sans);
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  nav .mark {
+    font-family: var(--sans);
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav li { margin: 0; }
+  nav a {
+    display: block;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 5px 0 5px 10px;
+    border-left: 2px solid transparent;
+  }
+  nav a:hover { color: var(--ink); }
+  main { padding: 36px 28px 96px 12px; max-width: 820px; min-width: 0; }
+  header.cover {
+    border-bottom: 1px solid var(--line-strong);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+  .kicker {
+    font-family: var(--sans);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 650;
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-weight: 560;
+    font-size: 40px;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    margin: 0 0 14px;
+  }
+  .lede { font-size: 20px; line-height: 1.45; margin: 0; }
+  .see { font-family: var(--sans); font-size: 14px; color: var(--muted); margin: 14px 0 0; }
+  h2 {
+    font-size: 28px;
+    font-weight: 560;
+    letter-spacing: -0.015em;
+    margin: 56px 0 12px;
+    line-height: 1.2;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    margin: 28px 0 8px;
+  }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 16px; padding-left: 1.2em; }
+  li { margin: 0 0 6px; }
+  strong { font-weight: 650; }
+  code, .mono { font-family: var(--mono); font-size: 0.84em; }
+  p code, li code, td code {
+    background: #efeae3;
+    padding: 0.05em 0.35em;
+    border-radius: 3px;
+  }
+  pre {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.45;
+    background: #1c1915;
+    color: #f3eee6;
+    padding: 16px 18px;
+    border-radius: 6px;
+    overflow: auto;
+    margin: 0 0 16px;
+  }
+  pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--sans);
+    font-size: 13.5px;
+    line-height: 1.4;
+    margin: 0 0 18px;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 650;
+    border-bottom: 1px solid var(--line-strong);
+  }
+  .callout {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    margin: 0 0 16px;
+  }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .callout.ok { border-left-color: var(--ok); background: var(--ok-soft); }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .label {
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+  .callout.warn .label { color: var(--warn); }
+  .callout.ok .label { color: var(--ok); }
+  figure { margin: 8px 0 22px; }
+  figcaption {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .board {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 14px;
+    overflow-x: auto;
+  }
+  .lane, .strip, .split-top {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    margin: 0 0 8px;
+  }
+  .lane:last-child, .strip:last-child { margin-bottom: 0; }
+  .box {
+    flex: 1;
+    border: 1px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 8px 10px;
+    text-align: center;
+    font-family: var(--sans);
+    font-size: 13px;
+    line-height: 1.3;
+    min-width: 96px;
+  }
+  .box b { display: block; font-weight: 650; }
+  .box small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; font-weight: 400; }
+  .box.machine { background: #efeae3; border-color: var(--line-strong); }
+  .box.infra { background: var(--warn-soft); border-color: var(--warn); }
+  .box.file { background: var(--sheet); border-style: dashed; }
+  .box.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .arr {
+    flex: 0 0 18px;
+    align-self: center;
+    text-align: center;
+    color: var(--accent);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1;
+  }
+  .stack { flex: 1.15; display: flex; flex-direction: column; gap: 8px; min-width: 120px; }
+  .stack .box { flex: 1; }
+  .envs {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    min-width: 560px;
+  }
+  .env {
+    border: 1px solid var(--line);
+    background: var(--paper);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .env h3 { margin: 0; text-align: center; }
+  .varr { text-align: center; color: var(--accent); font-family: var(--sans); line-height: 1; }
+  .steps { list-style: none; padding: 0; margin: 0 0 16px; }
+  .steps li {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 10px;
+    margin: 0 0 12px;
+  }
+  .num {
+    font-family: var(--sans);
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 14px;
+    padding-top: 2px;
+  }
+  .mile { border-top: 1px solid var(--line); padding: 16px 0 6px; }
+  .mile h3 { margin-top: 0; }
+  .tag {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    font-weight: 650;
+    padding: 2px 7px;
+    border-radius: 99px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    margin-right: 6px;
+  }
+  footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    nav { position: relative; height: auto; border-bottom: 1px solid var(--line); padding: 16px; }
+    nav ol { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    main { padding: 24px 16px 64px; }
+    h1 { font-size: 32px; }
+    .envs { grid-template-columns: 1fr; min-width: 0; }
+  }
+  @media print {
+    nav { display: none; }
+    .layout { display: block; max-width: none; }
+    main { max-width: none; }
+    body { background: white; font-size: 12pt; }
+    pre { white-space: pre-wrap; }
+    a { color: inherit; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <div class="mark">Keel</div>
+  <ol>
+    <li><a href="#decision">The product</a></li>
+    <li><a href="#picture">How it fits together</a></li>
+    <li><a href="#keel">The board</a></li>
+    <li><a href="#repo">Repository</a></li>
+    <li><a href="#modes">Three environments</a></li>
+    <li><a href="#signals">Two accounts</a></li>
+    <li><a href="#studio">Studio</a></li>
+    <li><a href="#journeys">Journeys and the skill</a></li>
+    <li><a href="#proof">Proof</a></li>
+    <li><a href="#safety">Team rules</a></li>
+    <li><a href="#dayone">Day one</a></li>
+    <li><a href="#milestones">Build order</a></li>
+    <li><a href="#out">Left out on purpose</a></li>
+    <li><a href="#locked">Choices already locked</a></li>
+  </ol>
+</nav>
+<main>
+<header class="cover">
+  <p class="kicker">Keel plan · 6 Nov 2026</p>
+  <h1>Keel</h1>
+  <p class="lede">A small TypeScript board the whole team can boot in seconds, run the same way on a laptop and on a server, and watch in two observability accounts: one for the product, one for the machines.</p>
+  <p class="see">How the pieces work is in <a href="explanation.html">the explanation</a>. The phase-by-phase build, with routes, bodies, and a test script per phase, is in <a href="implementation.html">the implementation plan</a>.</p>
+</header>
+
+<section id="decision">
+  <h2>The product</h2>
+  <p>One repository, named <strong>Keel</strong>. Keel is a team board: sign in, open a board, create a card, move it, comment, search. Beside it sits <strong>Studio</strong>, the room where the team rehearses realistic usage against whichever environment they pick.</p>
+  <p>Keel speaks one telemetry protocol, OTLP, to a collector on the same machine. The collector is the only process that holds a Datadog, Sentry, or OpenObserve credential. It sends what users do to the app account, and it sends the machines to the infra account. Changing vendor, or moving from a laptop to production, changes the collector’s config and the environment name. Keel stays the same.</p>
+  <div class="callout">
+    <p class="label">What “send metrics” means</p>
+    <p>Studio does not write a number into a vendor. It signs people in and has them use Keel. The API then emits the metric, the log, and the trace. A flat counter with nobody behind it would not look like a person on a chart.</p>
+  </div>
+</section>
+
+<section id="picture">
+  <h2>How it fits together</h2>
+  <figure>
+    <div class="board" role="img" aria-label="Person and Studio reach the Keel API. The API writes to Postgres and sends telemetry to the collector, which splits it into an app account and an infra account.">
+      <div class="lane">
+        <div class="box"><b>Person</b><small>browser</small></div>
+        <div class="arr">→</div>
+        <div class="box"><b>Keel web</b><small>:4100</small></div>
+        <div class="arr">→</div>
+        <div class="box"><b>Keel API</b><small>:4101</small></div>
+      </div>
+      <div class="lane">
+        <div class="box machine"><b>Studio</b><small>:4102</small></div>
+        <div class="arr">→</div>
+        <div class="box machine"><b>Runner</b><small>plays a journey</small></div>
+        <div class="arr">→</div>
+        <div class="box"><b>same API</b><small>ordinary requests</small></div>
+      </div>
+      <div class="lane">
+        <div class="box machine"><b>Postgres</b><small>:41532</small></div>
+        <div class="arr">←</div>
+        <div class="box"><b>API writes</b><small>cards and sessions</small></div>
+        <div class="arr">→</div>
+        <div class="box"><b>Collector</b><small>:4418 · keys stay here</small></div>
+        <div class="arr">→</div>
+        <div class="stack">
+          <div class="box"><b>App account</b><small>what users do</small></div>
+          <div class="box infra"><b>Infra account</b><small>the machines</small></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>Web and API both export OTLP to the collector. Studio’s own logs are machine telemetry. The requests the runner makes are product telemetry, because they are ordinary Keel requests.</figcaption>
+  </figure>
+
+  <h3>One card, end to end</h3>
+  <figure>
+    <div class="board" role="img" aria-label="Creating a card emits a log, a trace, and request timing. The collector delivers those to the app account. Host and database metrics stay in the infra account.">
+      <div class="strip">
+        <div class="box"><b>1</b><small>Person creates a card</small></div>
+        <div class="arr">→</div>
+        <div class="box"><b>2</b><small>API writes the card</small></div>
+        <div class="arr">→</div>
+        <div class="box"><b>3</b><small>log, trace, timing</small></div>
+        <div class="arr">→</div>
+        <div class="box"><b>4</b><small>Collector reads keel.signal</small></div>
+        <div class="arr">→</div>
+        <div class="stack">
+          <div class="box"><b>App account</b><small>the card and the request</small></div>
+          <div class="box infra"><b>Infra account</b><small>host and database only</small></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>The run id stamped on that request is how someone later finds this card in the app account, and how they confirm the infra account does not have it.</figcaption>
+  </figure>
+
+  <h3>What the repo has to include</h3>
+  <ul>
+    <li>A run id on every signal the runner causes, so “it worked” is a search.</li>
+    <li>A debug exporter, so the team can build with zero vendor accounts.</li>
+    <li>Two vendor organizations. A filter inside one account does not keep the product and the machines apart.</li>
+    <li>Keel’s own OpenObserve when that vendor is in use: two organizations, <code>keel-app</code> and <code>keel-infra</code>, on a dedicated endpoint.</li>
+    <li>Ports off the defaults, so Keel can run beside other local tools.</li>
+    <li>Studio on its own origin, so the control room is not product traffic.</li>
+    <li>One journey file that both the computer and the browser can play.</li>
+    <li>A target allowlist, so a production run cannot be aimed at localhost, and a laptop run cannot be aimed at the server.</li>
+    <li>The same Postgres in every environment.</li>
+  </ul>
+</section>
+
+<section id="keel">
+  <h2>The board</h2>
+  <p>Three roles — owner, member, viewer — make a forbidden action a normal event. A viewer can look and search. A member can create, move, and comment. An owner can move someone else’s card.</p>
+  <h3>Screens</h3>
+  <ul>
+    <li>Sign in.</li>
+    <li>Launch board: Todo, Doing, Done.</li>
+    <li>Card drawer: title, column, comments.</li>
+    <li>Search.</li>
+  </ul>
+  <h3>Seed, fixed ids</h3>
+  <p>Boot seeds one workspace, Northwind, one board, Launch, twelve cards, and three people: Ada (owner), Grace (member), Linus (viewer). Emails are <code>ada@keel.test</code>, <code>grace@keel.test</code>, <code>linus@keel.test</code>. Ids are fixed so a journey can name them. Local seeds on every boot and is idempotent. Production seeds only when <code>KEEL_SEED=1</code>, so a redeploy does not duplicate the board.</p>
+  <p>The cast logs in. A journey creates a fresh account only when the feature under test is sign-up itself, with an email <code>actor+&lt;runId&gt;@keel.test</code>, and only in local or local-prod. A new user on every run looks like a bot farm and hides the series the team is trying to see.</p>
+  <h3>HTTP surface</h3>
+  <table>
+    <thead><tr><th>Route</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST /session</code> <code>DELETE /session</code></td><td>Cookie session. HttpOnly, SameSite=Lax.</td></tr>
+      <tr><td><code>GET /boards/:id</code></td><td>Board, columns, cards.</td></tr>
+      <tr><td><code>POST /cards</code> <code>PATCH /cards/:id</code></td><td>Create and move. Empty title is a 400. A viewer’s move is a 403.</td></tr>
+      <tr><td><code>POST /cards/:id/comments</code></td><td>Comment.</td></tr>
+      <tr><td><code>GET /search?q=</code></td><td>Title search.</td></tr>
+      <tr><td><code>GET /health</code> <code>GET /ready</code></td><td>Process up, and ready once Postgres answers.</td></tr>
+      <tr><td><code>POST /otel</code></td><td>Browser proxy. Forwards OTLP to the collector. Holds no vendor key.</td></tr>
+    </tbody>
+  </table>
+  <p>The runner sends <code>x-keel-run-id</code>, <code>x-keel-actor</code>, <code>x-keel-journey</code>, and <code>x-keel-step</code>. The API copies them onto the span, the log, and the metric attributes. Organic traffic simply lacks them. Logs drop <code>authorization</code> and <code>cookie</code> before export.</p>
+</section>
+
+<section id="repo">
+  <h2>Repository</h2>
+  <p>pnpm workspaces, TypeScript, Node 22. One verb surface: nobody calls Docker or Vite by hand.</p>
+<pre><code>keel/
+  apps/web/            Vite + React. The board.
+  apps/api/            Hono. The only writer of product telemetry.
+  apps/studio/         Vite + React. The control room. Own origin.
+  apps/runner/         Plays a journey. Studio starts it. CI can start it headless.
+  packages/contracts/  Zod schemas: Journey, Step, Run, Target, Pace.
+  packages/otel/       Resource, tracer, meter, logger. No vendor SDK.
+  packages/journeys/   The workflow files, plus CATALOG.md.
+  collector/           base.yaml and one fragment per vendor.
+  infra/               compose for Postgres + collector, and the prod-like stack.
+  scripts/             up, down, status, doctor, init, check.
+  skills/keel-journey/ The skill that writes a journey file.
+  .github/workflows/   ci.yml, deploy.yml
+  docs/                architecture.md, accounts.md, journeys.md
+  README.md            The only door in.</code></pre>
+  <h3>Verbs</h3>
+  <table>
+    <thead><tr><th>Command</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td><code>./scripts/init</code></td><td>Copy <code>.env.example</code> to <code>.env</code> if missing. Mint <code>KEEL_SESSION_SECRET</code> when blank. Never print a secret.</td></tr>
+      <tr><td><code>./scripts/up</code></td><td>Local. Postgres and collector in Docker. API under <code>tsx watch</code>. Web and Studio under Vite.</td></tr>
+      <tr><td><code>./scripts/up prodlike</code></td><td>Local-prod. Build images if missing, or if <code>KEEL_REBUILD=1</code>. No source mounts. No watch.</td></tr>
+      <tr><td><code>./scripts/down</code></td><td>Stop what <code>up</code> started. Keep the Postgres volume.</td></tr>
+      <tr><td><code>./scripts/down --wipe</code></td><td>Also delete the volume. Asks for confirmation.</td></tr>
+      <tr><td><code>./scripts/status</code></td><td>Ports, health, which vendor, set or unset for each key. Values stay hidden.</td></tr>
+      <tr><td><code>./scripts/doctor</code></td><td>Node, Docker, free ports, env shape, collector config validates, production password is not the local default, Studio’s production target is not localhost.</td></tr>
+      <tr><td><code>pnpm check</code></td><td>Typecheck, unit tests, journey schema, <code>otelcol validate</code> on the rendered config.</td></tr>
+    </tbody>
+  </table>
+  <h3>Ports</h3>
+  <p>Chosen off the defaults (<code>3000</code>, <code>5432</code>, <code>4317</code>, <code>4318</code>) so Keel can sit beside other tools on a laptop.</p>
+  <table>
+    <thead><tr><th>Process</th><th>Port</th></tr></thead>
+    <tbody>
+      <tr><td>Keel web</td><td>4100</td></tr>
+      <tr><td>Keel API</td><td>4101</td></tr>
+      <tr><td>Studio</td><td>4102</td></tr>
+      <tr><td>Postgres</td><td>41532</td></tr>
+      <tr><td>Collector OTLP gRPC / HTTP</td><td>4417 / 4418</td></tr>
+      <tr><td>Optional OpenObserve</td><td>15081, profile <code>--with-openobserve</code> only</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="modes">
+  <h2>Three environments</h2>
+  <p>The names the team says out loud are the names in the config. The boxes are the same. The starter is what changes.</p>
+  <figure>
+    <div class="board" role="img" aria-label="local starts with live reload, local-prod starts the production containers on the laptop, production starts those same containers on a server from GitHub Actions.">
+      <div class="envs">
+        <div class="env">
+          <h3>local</h3>
+          <div class="box"><b>./scripts/up</b><small>and ./scripts/down</small></div>
+          <div class="varr">↓</div>
+          <div class="box"><b>Web and API</b><small>on the laptop, live reload</small></div>
+          <div class="varr">↓</div>
+          <div class="box machine"><b>Postgres + collector</b><small>Docker</small></div>
+        </div>
+        <div class="env">
+          <h3>local-prod</h3>
+          <div class="box"><b>./scripts/up prodlike</b><small>images, no source mounts</small></div>
+          <div class="varr">↓</div>
+          <div class="box"><b>Same containers</b><small>as production</small></div>
+          <div class="varr">↓</div>
+          <div class="box machine"><b>On the laptop</b><small>no file watch</small></div>
+        </div>
+        <div class="env">
+          <h3>production</h3>
+          <div class="box"><b>Merge to main</b><small>GitHub Action</small></div>
+          <div class="varr">↓</div>
+          <div class="box"><b>Same containers</b><small>pulled from the registry</small></div>
+          <div class="varr">↓</div>
+          <div class="box machine"><b>On the server</b><small>rollback is the previous tag</small></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>Local-prod exists so a built image can be trusted before it is deployed. Editing a source file does nothing there until the image is rebuilt.</figcaption>
+  </figure>
+  <table>
+    <thead><tr><th></th><th>local</th><th>local-prod</th><th>production</th></tr></thead>
+    <tbody>
+      <tr><td>How it starts</td><td><code>./scripts/up</code></td><td><code>./scripts/up prodlike</code></td><td>GitHub Actions on <code>main</code></td></tr>
+      <tr><td>App process</td><td>Host, file watch</td><td>Image, no watch</td><td>Same image shape, from the registry</td></tr>
+      <tr><td>Database</td><td>Postgres container</td><td>Postgres container</td><td>Postgres container on the server</td></tr>
+      <tr><td>Collector</td><td>Container, debug vendor by default</td><td>Same rendered config as production</td><td>Same file, production keys</td></tr>
+      <tr><td><code>deployment.environment</code></td><td><code>local</code></td><td><code>local-prod</code></td><td><code>production</code></td></tr>
+      <tr><td>Who it is for</td><td>Edit a feature, see the log line move</td><td>Prove the built artifact behaves</td><td>The accounts the team watches for real</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Local, and the honest clock</h3>
+  <p>The first run on a new laptop pulls Postgres and the collector. That is minutes, once. Every start after that, with images already present and the volume warm, has a budget <code>doctor</code> prints:</p>
+  <ul>
+    <li>Web responding in under 3 seconds.</li>
+    <li>API <code>/ready</code> in under 5 seconds.</li>
+    <li>Collector health in under 5 seconds.</li>
+  </ul>
+  <p>Edits to the API reload through <code>tsx watch</code>. Edits to the web and to Studio reload through Vite. Postgres and the collector stay up across reloads. <code>./scripts/down</code> is the whole stop story.</p>
+
+  <h3>Local-prod</h3>
+  <p>Compose runs <code>keel-web</code>, <code>keel-api</code>, <code>keel-studio</code>, Postgres, and the collector on one network. Images come from the Dockerfiles. Nothing bind-mounts the source tree. Environment variables come from <code>.env</code>, with <code>KEEL_ENV=local-prod</code>. Healthchecks gate startup order. The collector config is rendered from the same template production uses.</p>
+  <p>Local-prod matches process boundaries, the built assets, startup order, the health endpoints, and the export path. It is still one machine. It has no second replica and no load balancer.</p>
+  <p>Use a second pair of vendor accounts for local-prod when the team has them. When they have only one pair, the environment attribute still separates the series, and the README says which choice the team made. Production accounts and laptop accounts stay distinct as soon as a second pair exists, so a laptop soak does not move the production error rate.</p>
+
+  <h3>Production</h3>
+  <p>One small Linux server runs the same compose file. GitHub Actions is the deploy.</p>
+  <ol>
+    <li><code>ci.yml</code> on every pull request: <code>pnpm check</code>, image build with no push, collector validate.</li>
+    <li><code>deploy.yml</code> on <code>main</code>: build, push to the registry with OIDC, SSH to the server, <code>docker compose pull</code> and <code>up -d</code>, then <code>curl</code> the public <code>/ready</code>.</li>
+    <li>The workflow records the image tag. <code>workflow_dispatch</code> with an <code>image_tag</code> input redeploys an older tag. That is the rollback.</li>
+  </ol>
+  <p>Secrets live in the GitHub environment <code>production</code>: <code>DEPLOY_HOST</code>, <code>DEPLOY_SSH_KEY</code>, a pinned <code>known_hosts</code> entry, and the vendor keys. The job writes them to a root-only file on the server and does not echo them. API migrations are short forward-only SQL files applied on boot, each one safe to run twice.</p>
+  <p>After the image is on the host, the new containers should pass <code>/ready</code> within 30 seconds. The pull is the slow part. The app inside the image does not compile on start.</p>
+  <p>A deploy ends with a Studio smoke only when a person starts it: one actor, one journey, ten minutes maximum, run id printed in the Actions log. The workflow itself only checks <code>/ready</code>. A deploy that generates traffic on its own will disturb whoever is watching the production account.</p>
+</section>
+
+<section id="signals">
+  <h2>Two accounts</h2>
+  <p>One account is the product. The other is the machines. A product dashboard then shows requests, errors, and traces. A machine dashboard shows CPU, the database, and the collector. They do not share a login.</p>
+  <p>There are two slots, app and infra. One environment uses one vendor at a time. An empty slot stays on the collector log. It is not copied into the slot that has a key. Pasting the same key into both slots is refused. The metric names Studio can show live in <code>packages/catalog/metrics.yaml</code>. The API emits a metric only when that file lists it, and each journey names the rows it moves.</p>
+  <table>
+    <thead><tr><th>Signal</th><th><code>keel.signal</code></th><th>Account</th></tr></thead>
+    <tbody>
+      <tr><td>HTTP duration, request counter, card and comment counters</td><td><code>app</code></td><td>App</td></tr>
+      <tr><td>Request logs, mutation logs, handled 4xx</td><td><code>app</code></td><td>App</td></tr>
+      <tr><td>Server spans, and later the browser span around a click</td><td><code>app</code></td><td>App</td></tr>
+      <tr><td>Host metrics, Postgres, collector self-metrics, Studio’s own logs</td><td><code>infra</code></td><td>Infra</td></tr>
+    </tbody>
+  </table>
+  <h3>Attribute contract</h3>
+  <p>Every signal carries these. The collector routes on <code>keel.signal</code>. People search on the run id.</p>
+  <table>
+    <thead><tr><th>Attribute</th><th>Set by</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td><code>service.name</code></td><td>process</td><td><code>keel-api</code>, <code>keel-web</code>, <code>keel-studio</code>, <code>otelcol</code></td></tr>
+      <tr><td><code>service.version</code></td><td>build</td><td>git sha</td></tr>
+      <tr><td><code>deployment.environment</code></td><td><code>KEEL_ENV</code></td><td><code>local</code>, <code>local-prod</code>, <code>production</code></td></tr>
+      <tr><td><code>keel.signal</code></td><td>app or collector</td><td><code>app</code> or <code>infra</code></td></tr>
+      <tr><td><code>keel.run_id</code></td><td>runner</td><td><code>run_01H…</code>, absent on organic traffic</td></tr>
+      <tr><td><code>keel.actor</code></td><td>runner</td><td><code>grace</code></td></tr>
+      <tr><td><code>keel.journey</code> <code>keel.step</code></td><td>runner</td><td><code>create-card</code>, <code>add-card</code></td></tr>
+      <tr><td><code>keel.pace</code></td><td>runner</td><td><code>office</code> or <code>machine</code></td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn">
+    <p class="label">Sentry, specifically</p>
+    <p>Traces and errors over OTLP are the dependable path into Sentry. Metrics over OTLP need a check on the day they are wired. <code>doctor</code> exports one sample of each signal and records which the endpoint accepted. Keel does not invent a stand-in metric to hide a gap. Datadog’s exporter and OpenObserve’s OTLP endpoint take all three.</p>
+  </div>
+  <h3>Vendor switch</h3>
+  <p><code>KEEL_COLLECTOR_VENDOR</code> is <code>debug</code>, <code>datadog</code>, <code>sentry</code>, or <code>openobserve</code>. <code>scripts/up</code> renders <code>generated/collector.yaml</code> from <code>collector/base.yaml</code> plus one fragment. Generated files stay gitignored. Keys are environment variables: <code>KEEL_VENDOR_APP_API_KEY</code> and <code>KEEL_VENDOR_INFRA_API_KEY</code>, plus an endpoint and a site or org for each. <code>debug</code> prints to the collector log and needs no key. Studio labels that run “not exported”.</p>
+  <p>OpenObserve means two organizations, <code>keel-app</code> and <code>keel-infra</code>, either in a cloud account or in the optional container on port <code>15081</code>. That container belongs to Keel. It is started only with <code>./scripts/up --with-openobserve</code>.</p>
+  <h3>App metrics worth querying</h3>
+  <ul>
+    <li><code>http.server.request.duration</code> histogram, attributes <code>http.route</code> (the template, never the raw id), <code>http.response.status_code</code>, <code>http.request.method</code>.</li>
+    <li><code>http.server.requests</code> counter, same attributes.</li>
+    <li><code>keel.card.created</code>, <code>keel.card.moved</code>, <code>keel.comment.created</code>.</li>
+    <li>Error rate is the 5xx slice of the request counter, plus a 403 and 400 slice for the known bad actions.</li>
+  </ul>
+</section>
+
+<section id="studio">
+  <h2>Studio</h2>
+  <p>Studio is a separate service the team uses to rehearse usage. Its own logs are <code>keel.signal=infra</code> and <code>service.name=keel-studio</code>. The actions it causes on Keel are ordinary Keel requests, so they land in the app account.</p>
+  <figure>
+    <div class="board" role="img" aria-label="Studio picks one environment. The runner calls only that environment's Keel.">
+      <div class="lane">
+        <div class="box"><b>Studio</b><small>operator picks one</small></div>
+        <div class="arr">→</div>
+        <div class="box machine"><b>Runner</b><small>one target for the run</small></div>
+        <div class="arr">→</div>
+        <div class="stack">
+          <div class="box on"><b>local</b><small>laptop, live reload</small></div>
+          <div class="box machine"><b>local-prod</b><small>containers on the laptop</small></div>
+          <div class="box machine"><b>production</b><small>the server</small></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>Shown aimed at local. For that run the other two stay closed. A run never switches target halfway through.</figcaption>
+  </figure>
+  <h3>What the operator sees</h3>
+  <ul>
+    <li>Environment: local, local-prod, or production. The list is <code>studio/targets.json</code>, committed, with base URLs and an allowed host per name. Production’s allowed host is the server’s hostname. A URL whose host disagrees with the name is refused before any request.</li>
+    <li>Mode: Computer or Person.</li>
+    <li>Journey, or a mix.</li>
+    <li>Pace profile.</li>
+    <li>Start, pause, stop.</li>
+    <li>A live strip: who is in, which step they are on, the run id, the error count.</li>
+    <li>A proof line: the run id, the account it should have reached, and the vendor query to paste.</li>
+  </ul>
+  <h3>Computer</h3>
+  <p>A Node process signs in over HTTP, holds the cookie, and calls the same routes a person would. It is the mode to leave running. It is still a person, on a clock the team can compress. It is not a metric writer.</p>
+  <p>Each actor has a state: away, arriving, working, leaving. Arrivals are spaced by a Poisson draw from the pace profile, so they clump and gap the way a morning does. A session length is lognormal, median eight minutes on the script clock, with a tail out to about twenty-five. Inside a session a small Markov chain picks the next journey from the role: Linus reads and searches, Grace creates and comments, Ada also moves other people’s cards. Between steps the runner sleeps a think time from that step’s range. A fatigue factor stretches the gaps slightly as the session goes on. About three percent of journeys are abandoned before the last write. About two percent take a known bad path, empty title or a viewer’s move, and those are real 400s and 403s.</p>
+  <p>The random source is seeded. Studio prints the seed. The same seed and the same pace produce the same sequence of actions. Wall-clock duration still depends on how fast the API answered.</p>
+  <p>Time scale is part of the profile and is printed in the UI in the same size as the run id. Local’s default scale is 10: one real minute stands for ten script minutes, so an office pattern is visible before a meeting ends. A rehearsal that should match a wall clock uses scale 1. A chart read without the scale will be wrong, so the scale is not a tooltip.</p>
+  <table>
+    <thead><tr><th>Profile</th><th>Actors</th><th>Scale</th><th>Length</th><th>Use</th></tr></thead>
+    <tbody>
+      <tr><td><code>demo</code></td><td>1</td><td>10</td><td>3 min</td><td>Watch one journey while editing.</td></tr>
+      <tr><td><code>office</code></td><td>3</td><td>10</td><td>15 min</td><td>The default human mix.</td></tr>
+      <tr><td><code>real-time</code></td><td>3</td><td>1</td><td>30 min</td><td>A chart that matches the clock.</td></tr>
+      <tr><td><code>machine</code></td><td>fixed 5 rps, cap 20</td><td>1</td><td>opt-in</td><td>Labeled <code>keel.pace=machine</code>. Kept out of any human view. Exists so a load test is not hidden inside the office profile.</td></tr>
+    </tbody>
+  </table>
+  <p>Against production, Computer starts at one actor and ten minutes until the operator raises it, and the raise requires typing the word <code>production</code>. The cap stays at twenty concurrent actors.</p>
+  <h3>Person</h3>
+  <p>Playwright opens the real web UI. One browser context per actor, so cookies never cross. Typing delay is 40–120 ms per character. Clicks go through the labels in the journey. Headless is the default; headed is a checkbox for when someone wants to watch. Think time still applies between steps and is capped so a rehearsal does not sit in silence. On a failed step the runner writes a screenshot under <code>generated/person/&lt;runId&gt;/</code>.</p>
+  <p>Person mode is how the team proves the button exists. Computer mode never notices a broken label. Person mode is one actor by default, and it is not the overnight job. Both modes read one file. A step that only one mode can run fails <code>pnpm check</code>, except the fault header, which is marked computer-only.</p>
+  <h3>Faults</h3>
+  <p>A toggle in Studio, default off, sends <code>x-keel-fault: once</code> on a single marked route so the API throws once. That moves the 5xx rate on purpose. The known 400 and 403 stay in the journeys and do not need the toggle.</p>
+</section>
+
+<section id="journeys">
+  <h2>Journeys and the skill</h2>
+  <figure>
+    <div class="board" role="img" aria-label="A skill writes one journey file. Computer mode plays the HTTP steps. Person mode plays the browser steps. Both reach Keel.">
+      <div class="lane">
+        <div class="box file"><b>Skill</b><small>writes the file only</small></div>
+        <div class="arr">→</div>
+        <div class="box file"><b>Journey file</b><small>ui steps and api steps</small></div>
+        <div class="arr">→</div>
+        <div class="stack">
+          <div class="box"><b>Computer</b><small>HTTP, human timing</small></div>
+          <div class="box"><b>Person</b><small>real browser</small></div>
+        </div>
+        <div class="arr">→</div>
+        <div class="stack">
+          <div class="box"><b>Keel API</b><small>the computer’s path</small></div>
+          <div class="box"><b>Keel web</b><small>then the API</small></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>Pace lives in Studio, not in the file, so the same feature can be a slow rehearsal or a tighter loop. The skill does not press start.</figcaption>
+  </figure>
+  <p>A journey is a YAML file in <code>packages/journeys</code>. It describes one feature twice: the clicks a person makes, and the HTTP calls the computer makes.</p>
+<pre><code>id: create-card
+title: Create a card on Launch
+feature: cards.create
+actors: [member, owner]
+steps:
+  - id: open-board
+    ui: { goto: /boards/launch, see: Launch }
+    api: { method: GET, path: /boards/launch }
+    thinkMs: { min: 600, max: 2500 }
+  - id: add-card
+    ui:
+      click: New card
+      fill: { label: Title, text: Check the collector }
+      click: Add
+      see: Check the collector
+    api:
+      method: POST
+      path: /cards
+      body: { boardId: launch, title: Check the collector, column: todo }
+    thinkMs: { min: 800, max: 4000 }</code></pre>
+  <h3>The first catalog</h3>
+  <table>
+    <thead><tr><th>Id</th><th>Who</th><th>Ends as</th></tr></thead>
+    <tbody>
+      <tr><td><code>sign-in</code></td><td>any</td><td>session cookie, board visible</td></tr>
+      <tr><td><code>read-board</code></td><td>any</td><td>200, no write</td></tr>
+      <tr><td><code>create-card</code></td><td>member, owner</td><td>card on Todo</td></tr>
+      <tr><td><code>move-card</code></td><td>member, owner</td><td>column changed</td></tr>
+      <tr><td><code>comment</code></td><td>member, owner</td><td>comment row</td></tr>
+      <tr><td><code>search</code></td><td>any</td><td>result list</td></tr>
+      <tr><td><code>forbidden-move</code></td><td>viewer</td><td>403</td></tr>
+      <tr><td><code>invalid-card</code></td><td>member</td><td>400, empty title</td></tr>
+    </tbody>
+  </table>
+  <h3>The skill</h3>
+  <p>It lives at <code>skills/keel-journey/SKILL.md</code>, and a person can install that same file as a Cursor skill. Its job is narrow:</p>
+  <ol>
+    <li>Read <code>CATALOG.md</code> and the existing YAML so it does not add a second “create card”.</li>
+    <li>Read the web app for the route and the visible labels. It may only name a button that exists.</li>
+    <li>Write one journey with both a <code>ui</code> block and an <code>api</code> block, and a <code>thinkMs</code> range a person would actually pause for.</li>
+    <li>Run <code>pnpm journeys:check</code>. The schema must accept the file. If the local API is up, the api steps run once and must match the status the file expects.</li>
+    <li>Stop. The person presses Start in Studio. The skill does not target production, does not hold a vendor key, and does not drive the browser itself.</li>
+  </ol>
+  <p>A workflow that lives only in a chat cannot be replayed by the next person, and it cannot be the thing CI runs. The file is the workflow. The runner is the human. The skill is the author.</p>
+</section>
+
+<section id="proof">
+  <h2>Proof</h2>
+  <p>A run is finished when the run id is found in the app account and absent from the infra account. Studio turning green only means the runner completed its steps.</p>
+  <ol class="steps">
+    <li><span class="num">1</span><div>Operator opens Studio, picks local, Computer, <code>create-card</code>, profile <code>demo</code>, and notes the seed.</div></li>
+    <li><span class="num">2</span><div>Studio starts the runner with a new <code>keel.run_id</code>, aimed only at local.</div></li>
+    <li><span class="num">3</span><div>The runner signs in as Grace, waits the sampled think time, and <code>POST /cards</code> with the run headers.</div></li>
+    <li><span class="num">4</span><div>The API writes the card and exports a span, a log, and the histogram points, <code>keel.signal=app</code>, to <code>127.0.0.1:4418</code>.</div></li>
+    <li><span class="num">5</span><div>The collector sends <code>app</code> to the app exporter and <code>infra</code> to the infra exporter.</div></li>
+    <li><span class="num">6</span><div><code>pnpm prove --run &lt;id&gt;</code> queries the vendor with the collector’s own credentials. It passes only when the app account has the log and the span, and the infra account does not have that log.</div></li>
+  </ol>
+  <p>With the vendor set to <code>debug</code>, the same steps end in the collector log instead of an account. Studio says “not exported”. That is a complete local loop, and it is the loop to use until the accounts exist. <code>docs/accounts.md</code> is the click-path for creating the two organizations in each vendor and filling the six key lines.</p>
+</section>
+
+<section id="safety">
+  <h2>Team rules</h2>
+  <ul>
+    <li>One person owns the vendor accounts. Keys live in the team password manager and in GitHub environment secrets. They do not go in chat, in a doc, or in git.</li>
+    <li><code>.env</code>, <code>generated/</code>, and Playwright artifacts are gitignored. <code>env.schema</code> lists every key as public or secret, required or optional. <code>doctor</code> and CI fail if a secret-shaped value shows up in a tracked file.</li>
+    <li>The local seed password is <code>keel-local-only</code>. <code>doctor</code> fails when <code>KEEL_ENV=production</code> still has that password.</li>
+    <li>Studio’s target file is the only place a base URL is allowed to live. Production cannot resolve to a loopback host. Local cannot resolve to the production host.</li>
+    <li>A production run requires the operator to type <code>production</code>, starts at one actor and ten minutes, and stays under the actor cap.</li>
+    <li>Seed users are <code>@keel.test</code>. There is no real personal data to scrub because none is collected.</li>
+    <li>Anyone on the team may run local and local-prod. Merging to <code>main</code> deploys. The README names who is allowed to press merge.</li>
+    <li><code>./scripts/down --wipe</code> is the only destructive local command, and it asks.</li>
+  </ul>
+  <h3>Env keys</h3>
+  <p>Names only. <code>.env.example</code> ships with the ports filled and the secrets empty.</p>
+<pre><code>KEEL_ENV=local
+KEEL_WEB_ORIGIN=http://127.0.0.1:4100
+KEEL_API_ORIGIN=http://127.0.0.1:4101
+KEEL_STUDIO_ORIGIN=http://127.0.0.1:4102
+DATABASE_URL=postgres://keel:keel@127.0.0.1:41532/keel
+KEEL_SESSION_SECRET=
+KEEL_SEED_PASSWORD=keel-local-only
+KEEL_SEED=1
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4418
+KEEL_COLLECTOR_VENDOR=debug
+KEEL_VENDOR_APP_ENDPOINT=
+KEEL_VENDOR_APP_API_KEY=
+KEEL_VENDOR_APP_SITE=
+KEEL_VENDOR_INFRA_ENDPOINT=
+KEEL_VENDOR_INFRA_API_KEY=
+KEEL_VENDOR_INFRA_SITE=</code></pre>
+</section>
+
+<section id="dayone">
+  <h2>Day one</h2>
+  <p>This becomes the README, in this order, with nothing else above the first command except the one-paragraph description.</p>
+  <ol class="steps">
+    <li><span class="num">1</span><div>Install Node 22, pnpm 9, and Docker.</div></li>
+    <li><span class="num">2</span><div><code>pnpm install</code></div></li>
+    <li><span class="num">3</span><div><code>./scripts/init</code> then <code>./scripts/up</code></div></li>
+    <li><span class="num">4</span><div>Open <code>http://127.0.0.1:4100</code> and sign in as <code>grace@keel.test</code> with the local seed password. The Launch board is there. Create a card. That is the app.</div></li>
+    <li><span class="num">5</span><div>Open <code>http://127.0.0.1:4102</code>. Leave the vendor on debug. Run profile <code>demo</code> on <code>create-card</code>. The collector log shows a span with the run id. That is the pipe, before any vendor account exists.</div></li>
+    <li><span class="num">6</span><div>When an account pair exists, fill the six vendor lines in <code>.env</code>, set <code>KEEL_COLLECTOR_VENDOR</code>, restart with <code>./scripts/up</code>, run the demo again, and <code>pnpm prove --run &lt;id&gt;</code>.</div></li>
+    <li><span class="num">7</span><div><code>./scripts/down</code> at the end of the day.</div></li>
+  </ol>
+  <p>Troubleshooting is <code>./scripts/doctor</code>, then <code>./scripts/status</code>. The README links to <code>docs/architecture.md</code>, <code>docs/accounts.md</code>, and <code>docs/journeys.md</code> and does not repeat them.</p>
+</section>
+
+<section id="milestones">
+  <h2>Build order</h2>
+  <p>Each milestone is usable by the team before the next one starts. Later milestones assume the earlier “done when” is true. The section-level build of each milestone, including request bodies and the test script that closes the phase, is in <a href="implementation.html">the implementation plan</a>.</p>
+  <article class="mile">
+    <h3><span class="tag">M1</span> The board boots</h3>
+    <p>Web, API, Postgres, seed, sign-in, the Launch board, health and ready, <code>init</code> / <code>up</code> / <code>down</code> / <code>doctor</code>, and the README a new teammate can follow. Structured logs on stdout. No collector yet.</p>
+    <p><strong>Done when</strong> a second person, on a clean laptop, reaches the board from the README without asking anyone, inside the warm-start budget on the second run.</p>
+  </article>
+  <article class="mile">
+    <h3><span class="tag">M2</span> The telemetry contract</h3>
+    <p><code>packages/otel</code>, the attribute list, the run-id headers, the collector in <code>debug</code>, and an in-memory exporter test that a <code>POST /cards</code> produces a span and a histogram point. CI runs this with no vendor and no Docker beyond what the test already fakes. Browser <code>/otel</code> waits until the person-mode milestone. Server signals are enough to prove the two accounts.</p>
+    <p><strong>Done when</strong> <code>doctor</code> shows the two pipelines, and the unit test fails if the route template is replaced by a raw card id.</p>
+  </article>
+  <article class="mile">
+    <h3><span class="tag">M3</span> Two accounts, one vendor</h3>
+    <p>OpenObserve first, on port <code>15081</code> or a cloud org pair, because it costs nothing and takes all three signals. Datadog next when keys exist. Routing by <code>keel.signal</code>. <code>pnpm prove</code>.</p>
+    <p><strong>Done when</strong> a demo run id is in the app org’s logs and traces and missing from the infra org’s logs, and the request histogram is queryable in the app org.</p>
+  </article>
+  <article class="mile">
+    <h3><span class="tag">M4</span> Studio and the computer</h3>
+    <p>Studio UI, the runner, profiles, the seeded clock, the role mix, abandon and known errors, the live strip, the production typing gate. Journeys shipped here: <code>sign-in</code>, <code>read-board</code>, <code>create-card</code>, <code>forbidden-move</code>.</p>
+    <p><strong>Done when</strong> two runs with the same seed perform the same steps in the same order, the UI shows the time scale without a hover, and a run aimed at local never calls another host.</p>
+  </article>
+  <article class="mile">
+    <h3><span class="tag">M5</span> A person in a browser</h3>
+    <p>Playwright executor for the same YAML. One actor. Headed optional. Screenshot on failure. One journey runs in CI against the local web.</p>
+    <p><strong>Done when</strong> <code>create-card</code> passes headless in CI, and a headed run is watchable from Studio.</p>
+  </article>
+  <article class="mile">
+    <h3><span class="tag">M6</span> The skill</h3>
+    <p><code>skills/keel-journey</code> writes <code>comment</code> or <code>search</code>, whichever is still missing, and <code>journeys:check</code> gates the file.</p>
+    <p><strong>Done when</strong> someone who did not write the runner can ask the skill for a journey and then play it in both modes.</p>
+  </article>
+  <article class="mile">
+    <h3><span class="tag">M7</span> Local-prod</h3>
+    <p>Dockerfiles, compose, no source mounts, the shared collector template, a measured cold and warm start written into the README.</p>
+    <p><strong>Done when</strong> a card created against the image shows the same run-id proof as local, and editing a source file does nothing until <code>KEEL_REBUILD=1</code>.</p>
+  </article>
+  <article class="mile">
+    <h3><span class="tag">M8</span> Production</h3>
+    <p>Container registry, <code>deploy.yml</code>, SSH with pinned host key, smoke on <code>/ready</code>, rollback by tag, production keys in the GitHub environment, Studio allowlist pointed at the server.</p>
+    <p><strong>Done when</strong> a merge to <code>main</code> replaces the containers, <code>/ready</code> passes, and a tagged redeploy of the previous sha brings the old image back.</p>
+  </article>
+  <article class="mile">
+    <h3><span class="tag">M9</span> The other vendors</h3>
+    <p>Datadog and Sentry fragments, if OpenObserve was first. No application change. <code>doctor</code> records, per vendor, which of the three signals the endpoint accepted.</p>
+    <p><strong>Done when</strong> changing <code>KEEL_COLLECTOR_VENDOR</code> and restarting is the entire switch, and any Sentry gap is a line in <code>doctor</code> rather than a surprise on a dashboard.</p>
+  </article>
+</section>
+
+<section id="out">
+  <h2>Left out on purpose</h2>
+  <ul>
+    <li>Kubernetes, Helm, and Terraform. Production is one server and the same compose file as local-prod.</li>
+    <li>A button that posts a raw number to a vendor.</li>
+    <li>Public sign-up, OAuth, email delivery, and mobile.</li>
+    <li>More than one replica. Concurrency comes from actors, not from copies of the API.</li>
+    <li>Sharing Postgres, the collector ports, or OpenObserve with any other project on the laptop.</li>
+  </ul>
+</section>
+
+<section id="locked">
+  <h2>Choices already locked</h2>
+  <p>These are decided so the build can start. A change to any of them is a change to this plan.</p>
+  <table>
+    <thead><tr><th>Topic</th><th>Decision</th></tr></thead>
+    <tbody>
+      <tr><td>Repo and product</td><td>Keel. Studio is the usage studio in the same repo.</td></tr>
+      <tr><td>Language and runtime</td><td>TypeScript on Node 22, pnpm, Hono, Vite, React, Zod, Playwright</td></tr>
+      <tr><td>Database</td><td>Postgres in all three environments</td></tr>
+      <tr><td>Vendor client</td><td>The collector only. Apps export OTLP.</td></tr>
+      <tr><td>Account split</td><td>Two vendor organizations. App gets logs, traces, and request metrics. Infra gets host, database, collector, and Studio.</td></tr>
+      <tr><td>First vendor</td><td>OpenObserve on Keel’s own endpoint. Then Datadog. Then Sentry, with an honest signal check.</td></tr>
+      <tr><td>Humans</td><td>One YAML journey, two executors. The skill writes the file. The runner performs it. Computer is the long-running mode. Person is the browser proof.</td></tr>
+      <tr><td>Environments</td><td><code>local</code>, <code>local-prod</code>, <code>production</code>. A Studio run aims at one of them.</td></tr>
+      <tr><td>Production</td><td>One server, a container registry, GitHub Actions, rollback by image tag</td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok">
+    <p class="label">Start at M1</p>
+    <p>The next concrete change is the repo skeleton, the README in the day-one order, and a board that signs in. Telemetry, Studio, and the vendor accounts wait until that board is something a teammate can open.</p>
+  </div>
+</section>
+
+<footer>
+  Keel plan. Written so a teammate can boot the board, point the collector at two accounts, and rehearse usage from Studio without a private explanation.
+</footer>
+</main>
+</div>
+</body>
+</html>

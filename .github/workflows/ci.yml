@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install -g pnpm@11.9.0
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check
+        run: pnpm check
+      - name: Render the collector
+        run: node scripts/render-collector.ts
+      - name: Validate the collector
+        run: docker run --rm -v "$PWD/generated/collector.yaml:/etc/otelcol/config.yaml:ro" otel/opentelemetry-collector-contrib:0.128.0 validate --config=/etc/otelcol/config.yaml
+      - name: Build images
+        run: docker compose -f infra/compose.yaml build api web studio

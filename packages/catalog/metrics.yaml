@@ -1,0 +1,22 @@
+metrics:
+  - name: http.server.requests
+    kind: counter
+    signal: app
+    description: HTTP requests handled by the API, including 4xx and 5xx.
+  - name: http.server.request.duration
+    kind: histogram
+    unit: ms
+    signal: app
+    description: Handler time in milliseconds.
+  - name: keel.card.created
+    kind: counter
+    signal: app
+    description: Cards saved by POST /cards.
+  - name: keel.card.moved
+    kind: counter
+    signal: app
+    description: Cards whose column changed.
+  - name: keel.comment.created
+    kind: counter
+    signal: app
+    description: Comments saved on a card.

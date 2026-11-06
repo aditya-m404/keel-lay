@@ -1,0 +1,137 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4417
+      http:
+        endpoint: 0.0.0.0:4418
+  hostmetrics:
+    collection_interval: 15s
+    scrapers:
+      cpu:
+      memory:
+  postgresql:
+    endpoint: postgres:5432
+    username: keel
+    password: keel
+    databases:
+      - keel
+    collection_interval: 15s
+    tls:
+      insecure: true
+  prometheus/collector:
+    config:
+      scrape_configs:
+        - job_name: otelcol
+          scrape_interval: 15s
+          static_configs:
+            - targets: ["127.0.0.1:8888"]
+
+processors:
+  batch:
+    timeout: 1s
+  resource/infra:
+    attributes:
+      - key: keel.signal
+        value: infra
+        action: upsert
+      - key: keel.run_id
+        action: delete
+
+connectors:
+  routing/logs:
+    error_mode: ignore
+    default_pipelines: [logs/dropped]
+    table:
+      - statement: route() where attributes["keel.signal"] == "app"
+        pipelines: [logs/app]
+      - statement: route() where attributes["keel.signal"] == "infra"
+        pipelines: [logs/infra]
+  routing/traces:
+    error_mode: ignore
+    default_pipelines: [traces/dropped]
+    table:
+      - statement: route() where attributes["keel.signal"] == "app"
+        pipelines: [traces/app]
+      - statement: route() where attributes["keel.signal"] == "infra"
+        pipelines: [traces/infra]
+  routing/metrics:
+    error_mode: ignore
+    default_pipelines: [metrics/dropped]
+    table:
+      - statement: route() where attributes["keel.signal"] == "app"
+        pipelines: [metrics/app]
+      - statement: route() where attributes["keel.signal"] == "infra"
+        pipelines: [metrics/infra]
+  count/dropped:
+    logs:
+      keel.unlabeled.logs:
+        description: Logs dropped because keel.signal was missing.
+    spans:
+      keel.unlabeled.spans:
+        description: Spans dropped because keel.signal was missing.
+    datapoints:
+      keel.unlabeled.datapoints:
+        description: Metric points dropped because keel.signal was missing.
+
+exporters:
+  debug/unlabeled:
+    verbosity: basic
+
+service:
+  telemetry:
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [routing/logs]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [routing/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [routing/metrics]
+    metrics/machines:
+      receivers: [hostmetrics, postgresql, prometheus/collector]
+      processors: [resource/infra]
+      exporters: [routing/metrics]
+    logs/app:
+      receivers: [routing/logs]
+      exporters: [debug/app]
+    logs/infra:
+      receivers: [routing/logs]
+      exporters: [debug/infra]
+    logs/dropped:
+      receivers: [routing/logs]
+      exporters: [count/dropped]
+    traces/app:
+      receivers: [routing/traces]
+      exporters: [debug/app]
+    traces/infra:
+      receivers: [routing/traces]
+      exporters: [debug/infra]
+    traces/dropped:
+      receivers: [routing/traces]
+      exporters: [count/dropped]
+    metrics/app:
+      receivers: [routing/metrics]
+      exporters: [debug/app]
+    metrics/infra:
+      receivers: [routing/metrics]
+      exporters: [debug/infra]
+    metrics/dropped:
+      receivers: [routing/metrics]
+      exporters: [count/dropped]
+    metrics/unlabeled:
+      receivers: [count/dropped]
+      exporters: [debug/unlabeled]

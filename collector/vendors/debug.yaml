@@ -1,0 +1,5 @@
+exporters:
+  debug/app:
+    verbosity: detailed
+  debug/infra:
+    verbosity: detailed

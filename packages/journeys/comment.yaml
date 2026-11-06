@@ -1,0 +1,46 @@
+id: comment
+title: Comment on a card
+feature: cards.comment
+actor: grace
+actors: [member, owner]
+metrics: [keel.comment.created]
+steps:
+  - id: sign-in
+    ui:
+      - { goto: /sign-in }
+      - { see: Sign in }
+      - { fill: { label: Email, text: grace@keel.test } }
+      - { fill: { label: Password, text: keel-local-only } }
+      - { click: Sign in }
+      - { see: Launch }
+    api:
+      method: POST
+      path: /session
+      body:
+        email: grace@keel.test
+        password: keel-local-only
+      expect: 201
+    thinkMs: { min: 400, max: 1600 }
+  - id: open-card
+    ui:
+      - { goto: /boards/launch }
+      - { see: Draft the README }
+      - { click: Draft the README }
+      - { see: Comment }
+    api:
+      method: GET
+      path: /cards/card_01
+      expect: 200
+    thinkMs: { min: 400, max: 1800 }
+  - id: comment
+    ui:
+      - { fill: { label: Comment, text: Seen on the board. } }
+      - { click: Send }
+      - { see: Seen on the board. }
+    api:
+      method: POST
+      path: /cards/card_01/comments
+      body:
+        body: Seen on the board.
+      expect: 201
+    thinkMs: { min: 700, max: 3000 }

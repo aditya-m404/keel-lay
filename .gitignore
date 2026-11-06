@@ -1,0 +1,8 @@
+node_modules/
+.env
+generated/
+dist/
+apps/studio/build/
+*.tsbuildinfo
+test-results/
+playwright-report/

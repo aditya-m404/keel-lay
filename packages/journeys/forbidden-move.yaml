@@ -1,0 +1,42 @@
+id: forbidden-move
+title: A viewer cannot move a card
+feature: cards.move
+actor: linus
+actors: [viewer]
+steps:
+  - id: sign-in
+    ui:
+      - { goto: /sign-in }
+      - { see: Sign in }
+      - { fill: { label: Email, text: linus@keel.test } }
+      - { fill: { label: Password, text: keel-local-only } }
+      - { click: Sign in }
+      - { see: Launch }
+    api:
+      method: POST
+      path: /session
+      body:
+        email: linus@keel.test
+        password: keel-local-only
+      expect: 201
+    thinkMs: { min: 400, max: 1400 }
+  - id: read-board
+    ui:
+      - { goto: /boards/launch }
+      - { see: Draft the README }
+    api:
+      method: GET
+      path: /boards/launch
+      expect: 200
+    thinkMs: { min: 300, max: 1200 }
+  - id: move-card
+    ui:
+      - { see: Draft the README }
+    api:
+      method: PATCH
+      path: /cards/card_01
+      body:
+        column: doing
+      ifMatch: card_01
+      expect: 403
+    thinkMs: { min: 500, max: 1800 }

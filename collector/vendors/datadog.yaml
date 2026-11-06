@@ -1,0 +1,17 @@
+exporters:
+  otlphttp/app:
+    endpoint: ${env:KEEL_VENDOR_APP_ENDPOINT}
+    headers:
+      DD-API-KEY: ${env:KEEL_VENDOR_APP_API_KEY}
+    sending_queue:
+      enabled: true
+  otlphttp/infra:
+    endpoint: ${env:KEEL_VENDOR_INFRA_ENDPOINT}
+    headers:
+      DD-API-KEY: ${env:KEEL_VENDOR_INFRA_API_KEY}
+    sending_queue:
+      enabled: true
+  debug/app:
+    verbosity: detailed
+  debug/infra:
+    verbosity: detailed

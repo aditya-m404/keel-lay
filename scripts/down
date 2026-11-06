@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+for file in generated/studio.pid generated/web.pid generated/api.pid; do
+  if [[ -f "$file" ]]; then
+    pid="$(cat "$file")"
+    kill "$pid" 2>/dev/null || true
+    rm -f "$file"
+  fi
+done
+
+if [[ "${1:-}" == "--wipe" ]]; then
+  if [[ "${KEEL_WIPE:-}" != "yes" ]]; then
+    printf "Delete the Postgres volume? Type wipe: "
+    read -r answer
+    if [[ "$answer" != "wipe" ]]; then
+      echo "cancelled"
+      exit 1
+    fi
+  fi
+  docker compose -f infra/compose.yaml down -v
+else
+  docker compose -f infra/compose.yaml stop
+fi

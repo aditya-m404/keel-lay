@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+env_file=".env"
+if [[ -n "${DOCTOR_ENV_FILE:-}" ]]; then
+  env_file="${DOCTOR_ENV_FILE}"
+fi
+if [[ -f "$env_file" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$env_file"
+  set +a
+fi
+
+if [[ "${KEEL_ENV:-}" == "production" && "${KEEL_SEED_PASSWORD:-}" == "keel-local-only" ]]; then
+  echo "production seed password is still the local default" >&2
+  exit 1
+fi
+
+node --input-type=module -e '
+import { readFileSync } from "node:fs";
+const file = JSON.parse(readFileSync("apps/studio/targets.json", "utf8"));
+const prod = file.targets.find((item) => item.name === "production");
+const host = prod?.host ?? "";
+if (!host || host === "localhost" || host === "127.0.0.1" || host === "::1") {
+  console.error("production target host is loopback");
+  process.exit(1);
+}
+for (const name of ["local", "local-prod"]) {
+  const target = file.targets.find((item) => item.name === name);
+  if (target && target.host === host) {
+    console.error(`${name} target host matches production`);
+    process.exit(1);
+  }
+}
+'
+
+node scripts/render-collector.ts >/dev/null
+file=generated/collector.yaml
+grep -q "logs/app:" "$file"
+grep -q "logs/infra:" "$file"
+echo "pipeline app"
+echo "pipeline infra"
+
+if [[ -n "${KEEL_VENDOR_APP_API_KEY:-}" && -n "${KEEL_VENDOR_INFRA_API_KEY:-}" && -n "${KEEL_VENDOR_APP_ENDPOINT:-}" && -n "${KEEL_VENDOR_INFRA_ENDPOINT:-}" && "${KEEL_COLLECTOR_VENDOR:-debug}" != "debug" ]]; then
+  node scripts/doctor-vendor.ts
+fi

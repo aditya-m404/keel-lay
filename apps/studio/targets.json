@@ -1,0 +1,7 @@
+{
+  "targets": [
+    { "name": "local", "api": "http://127.0.0.1:4101", "web": "http://127.0.0.1:4100", "host": "127.0.0.1" },
+    { "name": "local-prod", "api": "http://127.0.0.1:4101", "web": "http://127.0.0.1:4100", "host": "127.0.0.1" },
+    { "name": "production", "api": "https://keel.example", "web": "https://keel.example", "host": "keel.example" }
+  ]
+}
