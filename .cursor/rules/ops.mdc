@@ -1,0 +1,26 @@
+---
+description: How local, local-prod, and production stacks start, stop, and read env
+globs: scripts/**,infra/**,package.json,.github/**,.env.example
+alwaysApply: false
+---
+
+# Stacks
+
+Three compose projects, three port sets:
+
+| Stack | File | Web | API | Studio | Postgres | Collector |
+| local | infra/compose.local.yaml | 4100 | 4101 | 4102 | 41532 | 4418 |
+| local-prod | infra/compose.local-prod.yaml | 4200 | 4201 | 4202 | 42532 | 4518 |
+| prod | infra/compose.prod.yaml | 8080 | — | 8082 | unpublished | unpublished |
+
+Local compose runs Postgres and the collector. The API, web, and Studio on 4100–4102 are host processes. Local-prod and prod run those three as images. A source change reaches local-prod only after `pnpm local-prod:rebuild`, or a targeted rebuild of the api and web images.
+
+`scripts/up` prints the URLs and the matching `npm run down*` line. Keep that output. `scripts/up` runs on macOS bash 3.2 with `set -u`, so leave empty arrays unexpanded.
+
+Vendor accounts are OpenObserve cloud, configured from env. There is no OpenObserve container. An empty infrastructure endpoint reuses the application account. The same key for both accounts is valid. Compose quotes the key variables so the space in `Basic …` survives. Both collectors mount `generated/collector.yaml`. Render once, then recreate both collectors.
+
+`pnpm prod` runs only when `KEEL_ENV=production`. Production origins and the session secret are the `KEEL_PROD_*` variables.
+
+`down:wipe` deletes a database volume. Run it only when the user asks.
+
+Host processes start with `python3` `os.setsid()` then `execvp`, and their pids live in `generated/*.pid`. `generated/` stays untracked.
