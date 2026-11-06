@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { fw } from "@fireweaveai/server-sdk/start";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import type pg from "pg";
@@ -93,6 +94,7 @@ export function sessionRoutes(pool: pg.Pool): Hono {
     }
     const token = newId("ses_");
     await startSession(pool, user.id, token);
+    await fw.identify(user.id, { role: user.role });
     setCookie(c, COOKIE, token, { ...cookieOptions(), maxAge: MAX_AGE });
     return c.json({ user: publicUser(user) }, 201);
   });
@@ -120,6 +122,7 @@ export function sessionRoutes(pool: pg.Pool): Hono {
 
     const token = newId("ses_");
     await startSession(pool, row.id, token);
+    await fw.identify(row.id, { role: row.role });
     setCookie(c, COOKIE, token, { ...cookieOptions(), maxAge: MAX_AGE });
     return c.json({ user: publicUser(row) }, 201);
   });

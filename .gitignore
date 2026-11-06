@@ -6,3 +6,5 @@ apps/studio/build/
 *.tsbuildinfo
 test-results/
 playwright-report/
+.fireweave/.cache/
+.claude/settings.local.json

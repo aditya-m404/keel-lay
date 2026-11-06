@@ -154,10 +154,16 @@ async function durationQueryable(origin: string, org: string, key: string): Prom
 
 loadEnvFile();
 const id = runId();
-const vendor = (process.env.KEEL_COLLECTOR_VENDOR || "debug").trim();
-const appKey = process.env.KEEL_VENDOR_APP_API_KEY?.trim() ?? "";
-const appEndpoint = process.env.KEEL_VENDOR_APP_ENDPOINT?.trim() ?? "";
+let vendor = (process.env.KEEL_COLLECTOR_VENDOR || "debug").trim();
+let appKey = process.env.KEEL_VENDOR_APP_API_KEY?.trim() ?? "";
+let appEndpoint = process.env.KEEL_VENDOR_APP_ENDPOINT?.trim() ?? "";
 const appSite = process.env.KEEL_VENDOR_APP_SITE;
+// With several vendors at once, the OpenObserve fan-out pair is the application account prove reads.
+if (vendor === "multi") {
+  appKey = process.env.KEEL_FANOUT_OPENOBSERVE_API_KEY?.trim() ?? "";
+  appEndpoint = process.env.KEEL_FANOUT_OPENOBSERVE_ENDPOINT?.trim() ?? "";
+  if (appKey && appEndpoint) vendor = "openobserve";
+}
 let infraKey = process.env.KEEL_VENDOR_INFRA_API_KEY?.trim() ?? "";
 let infraEndpoint = process.env.KEEL_VENDOR_INFRA_ENDPOINT?.trim() ?? "";
 let infraSite = process.env.KEEL_VENDOR_INFRA_SITE;
