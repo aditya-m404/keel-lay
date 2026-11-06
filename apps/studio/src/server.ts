@@ -8,8 +8,8 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { loadEnv } from "../../api/src/db/env.ts";
-import { journeyIds } from "./plan.ts";
-import { createRun, getRun, pauseRun, publicRun, stopRun } from "./runs.ts";
+import { journeyIds, journeySummary } from "./plan.ts";
+import { createRun, getRun, pauseRun, publicRun, stopRun, type AccountName, type People } from "./runs.ts";
 
 const INVALID = { error: { code: "invalid_body", message: "The request is invalid." } };
 const NOT_FOUND = { error: { code: "not_found", message: "Not found." } };
@@ -24,6 +24,10 @@ const startBody = z
     confirm: z.string(),
     api: z.string().optional(),
     headed: z.boolean().optional(),
+    people: z.enum(["seeded", "fresh", "metrics"]).optional(),
+    accounts: z.array(z.enum(["application", "infrastructure"])).min(1).max(2).optional(),
+    metricCount: z.number().int().min(1).max(100).optional(),
+    intervalMs: z.number().int().min(200).max(120000).optional(),
   })
   .strict();
 
@@ -45,6 +49,24 @@ function readTargets(): Target[] {
   return file.targets;
 }
 
+function shown(value: string | undefined): string {
+  const raw = (value ?? "").trim();
+  const text = raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw;
+  if (!text) return "";
+  try {
+    const parts = new URL(text).pathname.split("/").filter(Boolean);
+    const api = parts.indexOf("api");
+    if (api >= 0 && parts[api + 1]) return parts[api + 1];
+  } catch {
+    return text;
+  }
+  return text;
+}
+
+function accountSlot(name: "application" | "infrastructure", endpoint: string, key: string, site: string) {
+  return { name, configured: Boolean(endpoint && key), site: site || shown(endpoint) };
+}
+
 function hostOf(value: string): string | null {
   try {
     return new URL(value).hostname;
@@ -58,7 +80,27 @@ export function createStudioApp(): Hono {
 
   app.get("/targets", (c) => c.json({ targets: readTargets() }));
 
-  app.get("/journeys", (c) => c.json({ journeys: journeyIds() }));
+  app.get("/journeys", (c) =>
+    c.json({
+      journeys: journeyIds().map((id) => journeySummary(id) ?? { id, title: id, actor: "", metrics: [], steps: [] }),
+    }),
+  );
+
+  app.get("/accounts", (c) => {
+    const vendor = (process.env.KEEL_COLLECTOR_VENDOR || "debug").trim();
+    const application = accountSlot(
+      "application",
+      (process.env.KEEL_VENDOR_APP_ENDPOINT || "").trim(),
+      (process.env.KEEL_VENDOR_APP_API_KEY || "").trim(),
+      shown(process.env.KEEL_VENDOR_APP_SITE),
+    );
+    const infraEndpoint = (process.env.KEEL_VENDOR_INFRA_ENDPOINT || "").trim();
+    const infraKey = (process.env.KEEL_VENDOR_INFRA_API_KEY || "").trim();
+    const infrastructure = infraEndpoint && infraKey
+      ? accountSlot("infrastructure", infraEndpoint, infraKey, shown(process.env.KEEL_VENDOR_INFRA_SITE))
+      : { ...application, name: "infrastructure" as const, usesApplication: true };
+    return c.json({ vendor, application, infrastructure });
+  });
 
   app.post("/runs", async (c) => {
     let json: unknown;
@@ -82,11 +124,20 @@ export function createStudioApp(): Hono {
     if (!apiHost || !webHost || !targetHost || apiHost !== target.host || webHost !== target.host || targetHost !== target.host) {
       return c.json(INVALID, 400);
     }
+    const people: People = body.people ?? "seeded";
+    const accounts: AccountName[] = body.accounts ?? ["application"];
+    if (body.mode === "person" && people !== "seeded") {
+      return c.json({ error: { code: "invalid_body", message: "A browser run uses the seeded people. Pick Computer for a new account or for metrics only." } }, 400);
+    }
     const run = createRun({
       target: body.target,
       journey: body.journey,
       pace: body.pace,
       seed: body.seed,
+      people,
+      accounts,
+      metricCount: body.metricCount ?? 1,
+      intervalMs: body.intervalMs ?? 1000,
       api,
       web: target.web,
       mode: body.mode,
@@ -209,7 +260,7 @@ async function listen(): Promise<void> {
       })();
   const server = createServer((req, res) => {
     const pathname = (req.url ?? "/").split("?")[0] ?? "/";
-    if (pathname === "/targets" || pathname === "/journeys" || pathname.startsWith("/runs")) {
+    if (pathname === "/targets" || pathname === "/journeys" || pathname === "/accounts" || pathname.startsWith("/runs")) {
       api(req, res);
       return;
     }

@@ -101,6 +101,7 @@ services:
       KEEL_TUNNEL_WEB: web:4200
       KEEL_TUNNEL_WEB_BIND: "4200"
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4418
     ports:
       - "127.0.0.1:4202:4202"
     depends_on:

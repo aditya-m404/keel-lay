@@ -25,7 +25,16 @@ export type Journey = {
   title: string;
   actor: string;
   actors: string[];
+  metrics?: string[];
   steps: JourneyStep[];
+};
+
+export type JourneySummary = {
+  id: string;
+  title: string;
+  actor: string;
+  metrics: string[];
+  steps: { id: string; method: string; path: string; thinkMs: { min: number; max: number } }[];
 };
 
 export type PlannedStep = {
@@ -93,6 +102,31 @@ export function loadJourney(id: string): Journey | null {
     if (!step.id || !step.api?.method || !step.api.path || !step.ui || !step.thinkMs) return null;
   }
   return raw;
+}
+
+export function metricForStep(method: string, stepPath: string): string | null {
+  if (method === "POST" && stepPath === "/cards") return "keel.card.created";
+  if (method === "POST" && stepPath.endsWith("/comments")) return "keel.comment.created";
+  if (method === "POST" && stepPath.endsWith("/stars")) return "keel.card.starred";
+  if (method === "PATCH" && stepPath.startsWith("/cards/")) return "keel.card.moved";
+  return null;
+}
+
+export function journeySummary(id: string): JourneySummary | null {
+  const journey = loadJourney(id);
+  if (!journey) return null;
+  return {
+    id: journey.id,
+    title: journey.title,
+    actor: journey.actor,
+    metrics: (journey.metrics ?? []).filter((name) => typeof name === "string"),
+    steps: journey.steps.map((step) => ({
+      id: step.id,
+      method: step.api.method,
+      path: step.api.path,
+      thinkMs: step.thinkMs,
+    })),
+  };
 }
 
 export function journeyIds(): string[] {

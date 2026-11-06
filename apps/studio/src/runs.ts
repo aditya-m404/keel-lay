@@ -1,6 +1,6 @@
 import { newId } from "./ids.ts";
 import { playPerson } from "./person.ts";
-import { loadJourney, planSteps, profileFor, type Pace, type PlannedStep } from "./plan.ts";
+import { journeySummary, loadJourney, planSteps, profileFor, type Pace, type PlannedStep } from "./plan.ts";
 
 export type RunEvent = {
   at: string;
@@ -12,6 +12,10 @@ export type RunEvent = {
 
 export type RunStatus = "running" | "paused" | "stopped";
 
+export type People = "seeded" | "fresh" | "metrics";
+
+export type AccountName = "application" | "infrastructure";
+
 export type Run = {
   id: string;
   target: string;
@@ -19,6 +23,10 @@ export type Run = {
   journey: string;
   pace: Pace;
   seed: string;
+  people: People;
+  accounts: AccountName[];
+  metricCount: number;
+  intervalMs: number;
   scale: number;
   actors: number;
   minutes: number;
@@ -49,6 +57,10 @@ export function publicRun(run: Run) {
     journey: run.journey,
     pace: run.pace,
     seed: run.seed,
+    people: run.people,
+    accounts: run.accounts,
+    metricCount: run.metricCount,
+    intervalMs: run.intervalMs,
     scale: run.scale,
     actors: run.actors,
     minutes: run.minutes,
@@ -66,6 +78,10 @@ export function createRun(input: {
   journey: string;
   pace: Pace;
   seed: string;
+  people: People;
+  accounts: AccountName[];
+  metricCount: number;
+  intervalMs: number;
   api: string;
   web: string;
   mode: "computer" | "person";
@@ -73,6 +89,7 @@ export function createRun(input: {
 }): Run | null {
   const journey = loadJourney(input.journey);
   if (!journey) return null;
+  if (input.mode === "person" && input.people !== "seeded") return null;
   const profile = profileFor(input.pace, input.target);
   const run: Run = {
     id: newId("run_"),
@@ -81,6 +98,10 @@ export function createRun(input: {
     journey: input.journey,
     pace: input.pace,
     seed: input.seed,
+    people: input.people,
+    accounts: input.accounts,
+    metricCount: input.metricCount,
+    intervalMs: input.intervalMs,
     scale: profile.scale,
     actors: input.mode === "person" ? 1 : profile.actors,
     minutes: profile.minutes,
@@ -96,6 +117,7 @@ export function createRun(input: {
     errorCount: 0,
     cookies: new Map(),
   };
+  if (input.people === "fresh") run.steps = withFreshAccount(run.id, run.steps);
   runs.set(run.id, run);
   void execute(run);
   return run;
@@ -174,7 +196,7 @@ async function playStep(run: Run, step: PlannedStep, versions: Map<string, strin
     headers["content-type"] = "application/json";
     body = JSON.stringify(step.api.body);
   }
-  if (step.api.method === "POST" && (step.api.path === "/cards" || step.api.path.endsWith("/comments"))) {
+  if (step.api.method === "POST" && (step.api.path === "/cards" || step.api.path.endsWith("/comments") || step.api.path.endsWith("/stars"))) {
     headers["idempotency-key"] = newId("idem_");
   }
   if (step.api.ifMatch) {
@@ -219,9 +241,97 @@ async function playStep(run: Run, step: PlannedStep, versions: Map<string, strin
   });
 }
 
+function withFreshAccount(runId: string, steps: PlannedStep[]): PlannedStep[] {
+  const email = `fresh.${runId.slice(-10).toLowerCase()}@keel.test`;
+  const signup: PlannedStep["api"] = {
+    method: "POST",
+    path: "/session/sign-up",
+    body: { name: "Fresh member", email, password: "keel-local-only" },
+    expect: 201,
+  };
+  let replaced = false;
+  const next = steps.map((step) => {
+    if (step.api.method === "POST" && step.api.path === "/session") {
+      replaced = true;
+      return { ...step, actor: "fresh", api: signup };
+    }
+    return { ...step, actor: "fresh" };
+  });
+  if (!replaced) {
+    next.unshift({ actor: "fresh", step: "sign-up", thinkMs: 0, ui: [], api: signup });
+  }
+  return next;
+}
+
+function collectorUrl(): string {
+  return (process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://127.0.0.1:4418").replace(/\/$/, "");
+}
+
+function attribute(key: string, value: string): { key: string; value: { stringValue: string } } {
+  return { key, value: { stringValue: value } };
+}
+
+async function emitMetrics(run: Run, names: string[], count: number): Promise<number> {
+  const now = Date.now() * 1_000_000;
+  const metrics = names.map((name) => ({
+    name,
+    sum: {
+      aggregationTemporality: 2,
+      isMonotonic: true,
+      dataPoints: [{ asInt: String(count), startTimeUnixNano: String(now), timeUnixNano: String(now) }],
+    },
+  }));
+  const posts = run.accounts.map((account) => {
+    const signal = account === "infrastructure" ? "infra" : "app";
+    const attributes = [
+      attribute("service.name", "keel-api"),
+      attribute("keel.signal", signal),
+      attribute("deployment.environment", run.target === "local" ? "local" : run.target),
+    ];
+    if (signal === "app") attributes.push(attribute("keel.run_id", run.id), attribute("keel.journey", run.journey));
+    return fetch(`${collectorUrl()}/v1/metrics`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        resourceMetrics: [{ resource: { attributes }, scopeMetrics: [{ scope: { name: "keel-api" }, metrics }] }],
+      }),
+      signal: AbortSignal.timeout(4000),
+    });
+  });
+  const results = await Promise.all(posts.map(async (pending) => {
+    try {
+      const response = await pending;
+      return response.ok || response.status === 200 || response.status === 202 ? 200 : response.status;
+    } catch {
+      return 0;
+    }
+  }));
+  return results.some((status) => status === 200) ? 200 : results[0] ?? 0;
+}
+
+async function playMetrics(run: Run): Promise<void> {
+  const summary = journeySummary(run.journey);
+  const names = summary?.metrics.length ? summary.metrics : ["http.server.requests"];
+  for (let count = 1; count <= run.metricCount; count += 1) {
+    const ready = await waitTurn(run, run.intervalMs);
+    if (!ready) break;
+    const status = await emitMetrics(run, names, count);
+    if (status !== 200) run.errorCount += 1;
+    run.events.push({
+      at: new Date().toISOString(),
+      actor: "metrics",
+      step: names.join(", "),
+      status,
+      errorCount: run.errorCount,
+    });
+  }
+}
+
 async function execute(run: Run): Promise<void> {
   try {
-    if (run.mode === "person") {
+    if (run.people === "metrics") {
+      await playMetrics(run);
+    } else if (run.mode === "person") {
       await playPerson(run);
     } else {
       const versions = new Map<string, string>();

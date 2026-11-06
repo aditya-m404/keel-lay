@@ -1,5 +1,26 @@
 export type Target = { name: string; api: string; web: string; host: string };
 
+export type JourneyChoice = {
+  id: string;
+  title: string;
+  actor: string;
+  metrics: string[];
+  steps: { id: string; method: string; path: string; thinkMs: { min: number; max: number } }[];
+};
+
+export type AccountSlot = {
+  name: "application" | "infrastructure";
+  configured: boolean;
+  site: string;
+  usesApplication?: boolean;
+};
+
+export type AccountCatalog = {
+  vendor: string;
+  application: AccountSlot;
+  infrastructure: AccountSlot;
+};
+
 export type RunEvent = {
   at: string;
   actor: string;
@@ -18,14 +39,15 @@ export type LiveRun = {
 
 type State = {
   targets: Target[];
-  journeys: string[];
+  journeys: JourneyChoice[];
+  accounts: AccountCatalog | null;
   live: LiveRun | null;
   error: string;
 };
 
 const listeners = new Set<() => void>();
 
-let state: State = { targets: [], journeys: [], live: null, error: "" };
+let state: State = { targets: [], journeys: [], accounts: null, live: null, error: "" };
 
 function emit(): void {
   for (const listener of listeners) listener();
@@ -39,8 +61,8 @@ export const runStore = {
   getSnapshot(): State {
     return state;
   },
-  setCatalog(targets: Target[], journeys: string[]): void {
-    state = { ...state, targets, journeys };
+  setCatalog(targets: Target[], journeys: JourneyChoice[], accounts: AccountCatalog | null): void {
+    state = { ...state, targets, journeys, accounts };
     emit();
   },
   setError(error: string): void {
