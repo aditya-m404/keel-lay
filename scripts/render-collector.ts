@@ -32,10 +32,6 @@ function slot(name: "APP" | "INFRA"): { key: string; endpoint: string } {
 
 const appSlot = slot("APP");
 const infraSlot = slot("INFRA");
-if (appSlot.key && infraSlot.key && appSlot.key === infraSlot.key) {
-  console.error("refusing export: duplicate key in app and infra");
-  process.exit(1);
-}
 
 const vendor = process.env.KEEL_COLLECTOR_VENDOR || "debug";
 if (!vendors.has(vendor)) {
@@ -55,17 +51,22 @@ const merged = merge(base, extra) as {
 };
 
 if (vendor !== "debug") {
+  const filled = (current: { key: string; endpoint: string }) => current.key.length > 0 && current.endpoint.length > 0;
+  const appFilled = filled(appSlot);
+  const infraFilled = filled(infraSlot);
   const slots = [
-    ["app", appSlot],
-    ["infra", infraSlot],
+    ["app", appFilled, "app"],
+    ["infra", infraFilled || appFilled, infraFilled ? "infra" : "app"],
   ] as const;
-  for (const [name, current] of slots) {
-    const filled = current.key.length > 0 && current.endpoint.length > 0;
+  for (const [name, live, exporter] of slots) {
     for (const signal of ["logs", "traces", "metrics"]) {
       const pipeline = merged.service.pipelines[`${signal}/${name}`];
-      if (pipeline) pipeline.exporters = [filled ? `otlphttp/${name}` : `debug/${name}`];
+      if (pipeline) pipeline.exporters = [live ? `otlphttp/${exporter}` : `debug/${name}`];
     }
-    if (!filled) delete merged.exporters[`otlphttp/${name}`];
+    if (name === "infra" && live && exporter === "app") {
+      delete merged.exporters["otlphttp/infra"];
+      delete merged.exporters["debug/infra"];
+    } else if (!live) delete merged.exporters[`otlphttp/${name}`];
     else delete merged.exporters[`debug/${name}`];
   }
   const slotDebug = ["debug/app", "debug/infra"].filter((name) => name in merged.exporters);

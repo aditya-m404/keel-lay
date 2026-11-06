@@ -115,11 +115,25 @@ export function BoardPage() {
     <div className="board-layout">
       <div>
         <div className="board-head">
-          <h1>{snapshot.name}</h1>
-          {error ? <p className="alert" role="alert">{error}</p> : null}
+          <div>
+            <h1>{snapshot.name}</h1>
+            <p className="lede">{Object.keys(snapshot.cardsById).length} cards</p>
+          </div>
+          {canCreate ? (
+            <form className="composer" onSubmit={(event) => void onCreate(event)}>
+              <label>
+                New card
+                <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="What needs doing?" />
+              </label>
+              <button type="submit">Add</button>
+            </form>
+          ) : null}
         </div>
+        {error ? <p className="alert" role="alert">{error}</p> : null}
         <div className="columns">
-          {order.map((column) => (
+          {order.map((column) => {
+            const cards = cardsIn(column);
+            return (
             <section
               key={column}
               className="column"
@@ -128,8 +142,11 @@ export function BoardPage() {
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => void onDrop(event, column)}
             >
-              <h2>{labels[column]}</h2>
-              {cardsIn(column).map((card) => {
+              <div className="column-head">
+                <h2>{labels[column]}</h2>
+                <span className="count">{cards.length}</span>
+              </div>
+              {cards.map((card) => {
                 const movable = canMove(card);
                 const title = state.pending[card.id]?.title ?? card.title;
                 return (
@@ -168,17 +185,9 @@ export function BoardPage() {
               })}
               {state.pendingCreate?.column === column ? <div className="pending">{state.pendingCreate.title}</div> : null}
             </section>
-          ))}
+            );
+          })}
         </div>
-        {canCreate ? (
-          <form className="composer" onSubmit={(event) => void onCreate(event)}>
-            <label>
-              New card
-              <input value={draft} onChange={(event) => setDraft(event.target.value)} />
-            </label>
-            <button type="submit">Add</button>
-          </form>
-        ) : null}
       </div>
       <Outlet />
     </div>

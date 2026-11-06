@@ -12,6 +12,17 @@ set -a
 source .env
 set +a
 
+target="${1:-local}"
+case "$target" in
+  local) compose_file="infra/compose.local.yaml" ;;
+  prodlike | local-prod) compose_file="infra/compose.local-prod.yaml" ;;
+  prod | production) compose_file="infra/compose.prod.yaml" ;;
+  *)
+    echo "usage: ./scripts/up [local|local-prod|prod]" >&2
+    exit 1
+    ;;
+esac
+
 mkdir -p generated
 
 stop_pid() {
@@ -32,20 +43,29 @@ stop_pid() {
 }
 
 node scripts/render-collector.ts
-compose=(docker compose -f infra/compose.yaml)
-if [[ "${1:-}" == "--with-openobserve" || "${2:-}" == "--with-openobserve" ]]; then
-  compose+=(--profile openobserve)
+compose=(docker compose -f "$compose_file")
+
+if [[ "$target" == "prod" || "$target" == "production" ]]; then
+  if [[ "${KEEL_ENV:-}" != "production" ]]; then
+    echo "refusing production start: KEEL_ENV is ${KEEL_ENV:-unset}. The server env file sets KEEL_ENV=production." >&2
+    exit 1
+  fi
+  if [[ "${KEEL_PROD_SEED:-0}" == "1" && "${KEEL_PROD_SEED_PASSWORD:-}" == "keel-local-only" ]]; then
+    echo "production seed password is still the local default" >&2
+    exit 1
+  fi
+  "${compose[@]}" pull
+  "${compose[@]}" up -d --wait
+  echo "prod up"
+  echo "web     http://127.0.0.1:8080"
+  echo "studio  http://127.0.0.1:8082"
+  echo "stop    npm run down:prod"
+  exit 0
 fi
 
-if [[ "${1:-}" == "prodlike" ]]; then
-  stop_pid generated/studio.pid
-  stop_pid generated/web.pid
-  stop_pid generated/api.pid
+if [[ "$target" == "prodlike" || "$target" == "local-prod" ]]; then
   "${compose[@]}" up -d --wait postgres
-  if [[ "${2:-}" == "--with-openobserve" ]]; then
-    "${compose[@]}" up -d openobserve
-  fi
-  "${compose[@]}" up -d --no-deps collector
+  "${compose[@]}" up -d --force-recreate --no-deps collector
   if [[ "${KEEL_REBUILD:-}" == "1" ]]; then
     "${compose[@]}" up -d --wait --build --force-recreate api web studio
   elif ! docker image inspect keel-api:local >/dev/null 2>&1 \
@@ -55,14 +75,15 @@ if [[ "${1:-}" == "prodlike" ]]; then
   else
     "${compose[@]}" up -d --wait --no-build api web studio
   fi
+  echo "local-prod up"
+  echo "web     http://127.0.0.1:4200"
+  echo "api     http://127.0.0.1:4201"
+  echo "studio  http://127.0.0.1:4202"
+  echo "stop    npm run down:local-prod"
   exit 0
 fi
 
-"${compose[@]}" stop api web studio >/dev/null 2>&1 || true
-"${compose[@]}" up -d --wait postgres
-if [[ "${1:-}" == "--with-openobserve" ]]; then
-  "${compose[@]}" up -d openobserve
-fi
+"${compose[@]}" up -d --wait --remove-orphans postgres
 "${compose[@]}" up -d --force-recreate --no-deps collector
 node apps/api/src/db/migrate.ts
 node apps/api/src/db/seed.ts
@@ -96,7 +117,7 @@ for _ in $(seq 1 50); do
 done
 if [[ "$collector_ready" != 1 ]]; then
   echo "collector did not answer 127.0.0.1:4418" >&2
-  docker compose -f infra/compose.yaml logs collector >&2 || true
+  docker compose -f infra/compose.local.yaml logs collector >&2 || true
   exit 1
 fi
 
@@ -138,3 +159,9 @@ if [[ "$studio_ready" != 1 ]]; then
   cat generated/studio.log >&2 || true
   exit 1
 fi
+
+echo "local up"
+echo "web     http://127.0.0.1:4100"
+echo "api     http://127.0.0.1:4101"
+echo "studio  http://127.0.0.1:4102"
+echo "stop    npm run down"

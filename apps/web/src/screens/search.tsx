@@ -19,8 +19,8 @@ export function SearchBox() {
   return (
     <form className="search" role="search" onSubmit={(event) => event.preventDefault()}>
       <label>
-        Search
-        <input value={query} onChange={(event) => searchStore.setQuery(event.target.value)} />
+        <span className="sr">Search</span>
+        <input value={query} placeholder="Search" onChange={(event) => searchStore.setQuery(event.target.value)} />
       </label>
       {trimmed && results.length > 0 ? (
         <ul className="search-results">
@@ -42,6 +42,7 @@ export function SearchPage() {
   return (
     <section className="search-page">
       <h1>Search</h1>
+      <p className="lede">{trimmed ? `${results.length} matching ${results.length === 1 ? "card" : "cards"}` : "Titles from the board show up here."}</p>
       {trimmed ? (
         <ul className="results">
           {results.map((card) => (
@@ -50,9 +51,7 @@ export function SearchPage() {
             </li>
           ))}
         </ul>
-      ) : (
-        <p>Type in the search field.</p>
-      )}
+      ) : null}
     </section>
   );
 }

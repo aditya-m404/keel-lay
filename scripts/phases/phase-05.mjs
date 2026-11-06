@@ -54,7 +54,7 @@ function run(command, args) {
 }
 
 function collectorLog() {
-  const result = spawnSync("docker", ["compose", "-f", "infra/compose.yaml", "logs", "--no-color", "collector"], {
+  const result = spawnSync("docker", ["compose", "-f", "infra/compose.local.yaml", "logs", "--no-color", "collector"], {
     cwd: root,
     encoding: "utf8",
   });

@@ -20,3 +20,7 @@ metrics:
     kind: counter
     signal: app
     description: Comments saved on a card.
+  - name: keel.card.starred
+    kind: counter
+    signal: app
+    description: First time a person stars a card.

@@ -16,6 +16,14 @@ export const signInBody = z
   })
   .strict();
 
+export const signUpBody = z
+  .object({
+    name: z.string(),
+    email: z.string(),
+    password: z.string(),
+  })
+  .strict();
+
 export const userResponse = z.object({
   user: userSchema,
 });

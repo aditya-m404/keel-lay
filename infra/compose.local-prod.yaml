@@ -1,4 +1,5 @@
-name: keel
+# Local-prod. Its own project, volume, and host ports, so it can run beside local.
+name: keel-local-prod
 
 services:
   postgres:
@@ -8,9 +9,9 @@ services:
       POSTGRES_PASSWORD: keel
       POSTGRES_DB: keel
     ports:
-      - "127.0.0.1:41532:5432"
+      - "127.0.0.1:42532:5432"
     volumes:
-      - keel_pg:/var/lib/postgresql/data
+      - keel_local_prod_pg:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U keel -d keel"]
       interval: 2s
@@ -22,15 +23,15 @@ services:
     image: otel/opentelemetry-collector-contrib:0.128.0
     command: ["--config=/etc/otelcol/config.yaml"]
     environment:
-      KEEL_VENDOR_APP_ENDPOINT: ${KEEL_VENDOR_APP_ENDPOINT:-}
-      KEEL_VENDOR_APP_API_KEY: ${KEEL_VENDOR_APP_API_KEY:-}
-      KEEL_VENDOR_INFRA_ENDPOINT: ${KEEL_VENDOR_INFRA_ENDPOINT:-}
-      KEEL_VENDOR_INFRA_API_KEY: ${KEEL_VENDOR_INFRA_API_KEY:-}
+      KEEL_VENDOR_APP_ENDPOINT: "${KEEL_VENDOR_APP_ENDPOINT:-}"
+      KEEL_VENDOR_APP_API_KEY: "${KEEL_VENDOR_APP_API_KEY:-}"
+      KEEL_VENDOR_INFRA_ENDPOINT: "${KEEL_VENDOR_INFRA_ENDPOINT:-}"
+      KEEL_VENDOR_INFRA_API_KEY: "${KEEL_VENDOR_INFRA_API_KEY:-}"
     volumes:
       - ../generated/collector.yaml:/etc/otelcol/config.yaml:ro
     ports:
-      - "127.0.0.1:4417:4417"
-      - "127.0.0.1:4418:4418"
+      - "127.0.0.1:4517:4417"
+      - "127.0.0.1:4518:4418"
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,21 +45,21 @@ services:
     environment:
       KEEL_ENV: local-prod
       KEEL_BIND: 0.0.0.0
-      KEEL_API_ORIGIN: http://127.0.0.1:4101
-      KEEL_WEB_ORIGIN: http://127.0.0.1:4100
-      KEEL_STUDIO_ORIGIN: http://127.0.0.1:4102
+      KEEL_API_ORIGIN: http://127.0.0.1:4201
+      KEEL_WEB_ORIGIN: http://127.0.0.1:4200
+      KEEL_STUDIO_ORIGIN: http://127.0.0.1:4202
       DATABASE_URL: postgres://keel:keel@postgres:5432/keel
       KEEL_SESSION_SECRET: ${KEEL_SESSION_SECRET:-}
       KEEL_SEED_PASSWORD: ${KEEL_SEED_PASSWORD:-}
       KEEL_SEED: ${KEEL_SEED:-1}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4418
     ports:
-      - "127.0.0.1:4101:4101"
+      - "127.0.0.1:4201:4201"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4101/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4201/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 2s
       timeout: 5s
       retries: 30
@@ -71,15 +72,15 @@ services:
       dockerfile: infra/Dockerfile
       target: web
     environment:
-      KEEL_API_ORIGIN: http://api:4101
-      KEEL_WEB_ORIGIN: http://127.0.0.1:4100
+      KEEL_API_ORIGIN: http://api:4201
+      KEEL_WEB_ORIGIN: http://127.0.0.1:4200
     ports:
-      - "127.0.0.1:4100:4100"
+      - "127.0.0.1:4200:4200"
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4200/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 2s
       timeout: 5s
       retries: 20
@@ -93,32 +94,24 @@ services:
       target: studio
     environment:
       KEEL_BIND: 0.0.0.0
-      KEEL_STUDIO_ORIGIN: http://127.0.0.1:4102
+      KEEL_STUDIO_ORIGIN: http://127.0.0.1:4202
       KEEL_STUDIO_STATIC: /src/apps/studio/dist
-      KEEL_TUNNEL_API: api:4101
-      KEEL_TUNNEL_WEB: web:4100
+      KEEL_TUNNEL_API: api:4201
+      KEEL_TUNNEL_API_BIND: "4201"
+      KEEL_TUNNEL_WEB: web:4200
+      KEEL_TUNNEL_WEB_BIND: "4200"
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     ports:
-      - "127.0.0.1:4102:4102"
+      - "127.0.0.1:4202:4202"
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4102/targets').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4202/targets').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 2s
       timeout: 5s
       retries: 20
       start_period: 5s
 
-  openobserve:
-    profiles: ["openobserve"]
-    image: public.ecr.aws/zinclabs/openobserve:v0.14.5
-    environment:
-      ZO_ROOT_USER_EMAIL: ada@keel.test
-      ZO_ROOT_USER_PASSWORD: keel-local-only
-      ZO_LOCAL_MODE_STORAGE: local
-    ports:
-      - "127.0.0.1:15081:5080"
-
 volumes:
-  keel_pg:
+  keel_local_prod_pg:

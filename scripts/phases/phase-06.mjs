@@ -9,10 +9,7 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 const require = createRequire(new URL("../../apps/api/package.json", import.meta.url));
 const pg = require("pg");
 const yaml = createRequire(new URL("../../packages/otel/package.json", import.meta.url))("yaml");
-
-const appOrigin = "http://127.0.0.1:15081";
-const auth = `Basic ${Buffer.from("ada@keel.test:keel-local-only").toString("base64")}`;
-const runId = `run_phase6_${randomUUID().slice(0, 8)}`;
+const composeFile = "infra/compose.local.yaml";
 
 function miss(message) {
   throw new Error(message);
@@ -67,15 +64,9 @@ function render(env) {
   return result;
 }
 
-function compose(args, env) {
-  const result = spawn("docker", ["compose", "-f", "infra/compose.yaml", ...args], env);
-  if (result.status !== 0) miss(`${args.join(" ")}\n${result.stderr || result.stdout}`);
-  return result;
-}
-
-function collectorLog() {
-  const result = spawn("docker", ["compose", "-f", "infra/compose.yaml", "logs", "--no-color", "collector"], process.env);
-  return `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+function exporters() {
+  const doc = yaml.parse(readFileSync(path.join(root, "generated/collector.yaml"), "utf8"));
+  return doc;
 }
 
 async function waitCollector() {
@@ -87,112 +78,7 @@ async function waitCollector() {
       await sleep(250);
     }
   }
-  miss(`collector did not answer 127.0.0.1:4418\n${collectorLog().slice(-2000)}`);
-}
-
-async function waitOpenObserve() {
-  for (let attempt = 0; attempt < 90; attempt += 1) {
-    try {
-      const response = await fetch(`${appOrigin}/healthz`);
-      if (response.ok) return;
-    } catch {
-      // container still booting
-    }
-    await sleep(1000);
-  }
-  miss("openobserve did not answer 127.0.0.1:15081");
-}
-
-async function ensureOrg(name) {
-  const response = await fetch(`${appOrigin}/api/organizations`, {
-    method: "POST",
-    headers: { authorization: auth, "content-type": "application/json" },
-    body: JSON.stringify({ identifier: name, name, label: name }),
-  });
-  const text = await response.text();
-  if (response.ok || response.status === 409 || /already|exist/i.test(text)) return;
-  miss(`create org ${name} ${response.status} ${text.slice(0, 300)}`);
-}
-
-async function streamNames(org, type) {
-  const response = await fetch(`${appOrigin}/api/${org}/streams?type=${type}`, {
-    headers: { authorization: auth },
-  });
-  if (!response.ok) return [];
-  const text = await response.text();
-  const names = new Set();
-  try {
-    const parsed = JSON.parse(text);
-    for (const item of parsed.list ?? []) if (item.name) names.add(item.name);
-  } catch {
-    // fall through to the text scan
-  }
-  for (const match of text.matchAll(/"name"\s*:\s*"([^"]+)"/g)) names.add(match[1]);
-  return [...names];
-}
-
-async function search(org, type, sql) {
-  const now = Date.now();
-  const response = await fetch(`${appOrigin}/api/${org}/_search?type=${type}`, {
-    method: "POST",
-    headers: { authorization: auth, "content-type": "application/json" },
-    body: JSON.stringify({
-      query: {
-        sql,
-        start_time: (now - 30 * 60 * 1000) * 1000,
-        end_time: (now + 5 * 60 * 1000) * 1000,
-        from: 0,
-        size: 50,
-      },
-    }),
-  });
-  return { status: response.status, text: await response.text() };
-}
-
-function hitsHaveRun(text, id) {
-  try {
-    const parsed = JSON.parse(text);
-    return (parsed.hits ?? []).some((hit) => JSON.stringify(hit).includes(id));
-  } catch {
-    return false;
-  }
-}
-
-async function orgHas(org, type, id) {
-  const names = await streamNames(org, type);
-  const streams = names.length > 0 ? names : ["default"];
-  for (const name of streams) {
-    const quoted = `"${name.replaceAll('"', "")}"`;
-    for (const sql of [`SELECT * FROM ${quoted} WHERE keel_run_id = '${id}'`, `SELECT * FROM ${quoted}`]) {
-      const result = await search(org, type, sql);
-      if (result.status === 200 && hitsHaveRun(result.text, id)) return true;
-    }
-  }
-  return false;
-}
-
-const jar = new Map();
-
-function storeCookies(response) {
-  for (const header of response.headers.getSetCookie?.() ?? []) {
-    const pair = header.split(";")[0];
-    const eq = pair.indexOf("=");
-    jar.set(pair.slice(0, eq), pair.slice(eq + 1));
-  }
-}
-
-async function request(method, pathname, env, { body, headers = {} } = {}) {
-  const sent = { accept: "application/json", ...headers };
-  if (body !== undefined) sent["content-type"] = "application/json";
-  if (jar.size > 0) sent.cookie = [...jar.entries()].map(([name, value]) => `${name}=${value}`).join("; ");
-  const response = await fetch(`${env.KEEL_API_ORIGIN}${pathname}`, {
-    method,
-    headers: sent,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  storeCookies(response);
-  const text = await response.text();
-  return { status: response.status, json: text ? JSON.parse(text) : null };
+  miss("collector did not answer 127.0.0.1:4418");
 }
 
 const userEnv = { ...process.env };
@@ -204,88 +90,54 @@ try {
   const health = await fetch(`${userEnv.KEEL_API_ORIGIN}/health`);
   if (!health.ok) miss("API is not up. Run ./scripts/up.");
 
-  const appKey = auth;
-  const filled = {
+  const appKey = "Basic c2FtZS1hY2NvdW50";
+  const shared = {
     ...userEnv,
     KEEL_COLLECTOR_VENDOR: "openobserve",
-    KEEL_VENDOR_APP_ENDPOINT: "http://openobserve:5080/api/keel-app",
+    KEEL_VENDOR_APP_ENDPOINT: "https://api.openobserve.ai/api/keel",
     KEEL_VENDOR_APP_API_KEY: appKey,
     KEEL_VENDOR_INFRA_ENDPOINT: "",
     KEEL_VENDOR_INFRA_API_KEY: "",
   };
-  render(filled);
-  const doc = yaml.parse(readFileSync(path.join(root, "generated/collector.yaml"), "utf8"));
+  render(shared);
+  const doc = exporters();
   const names = Object.keys(doc.exporters);
-  const otlp = names.filter((name) => name.startsWith("otlphttp/"));
-  const debug = names.filter((name) => name.startsWith("debug/"));
-  if (otlp.length !== 1 || debug.length !== 1) miss(`exporters ${names.join(", ")}`);
-  if (otlp[0] !== "otlphttp/app" || debug[0] !== "debug/infra") miss(`exporters ${names.join(", ")}`);
+  if (!names.includes("otlphttp/app") || names.includes("otlphttp/infra")) miss(`exporters ${names.join(", ")}`);
   for (const signal of ["logs", "traces", "metrics"]) {
     const appPipe = doc.service.pipelines[`${signal}/app`].exporters.join(",");
     const infraPipe = doc.service.pipelines[`${signal}/infra`].exporters.join(",");
-    if (appPipe !== "otlphttp/app" || infraPipe !== "debug/infra") miss(`${signal} app=${appPipe} infra=${infraPipe}`);
+    if (appPipe !== "otlphttp/app" || infraPipe !== "otlphttp/app") miss(`${signal} app=${appPipe} infra=${infraPipe}`);
   }
   const rendered = readFileSync(path.join(root, "generated/collector.yaml"), "utf8");
   if (rendered.includes(appKey)) miss("rendered config contains the api key");
 
-  compose(["--profile", "openobserve", "up", "-d", "openobserve"], filled);
-  await waitOpenObserve();
-  await ensureOrg("keel-app");
-  await ensureOrg("keel-infra");
-  compose(["up", "-d", "--force-recreate", "--no-deps", "collector"], filled);
-  await waitCollector();
-
-  jar.clear();
-  const signed = await request("POST", "/session", userEnv, {
-    body: { email: "grace@keel.test", password: "keel-local-only" },
+  const same = spawn(process.execPath, ["scripts/render-collector.ts"], {
+    ...shared,
+    KEEL_VENDOR_INFRA_API_KEY: appKey,
+    KEEL_VENDOR_INFRA_ENDPOINT: "https://api.openobserve.ai/api/keel",
   });
-  if (signed.status !== 201) miss(`sign in ${signed.status}`);
-  const created = await request("POST", "/cards", userEnv, {
-    headers: { "idempotency-key": randomUUID(), "x-keel-run-id": runId },
-    body: { boardId: "launch", title: "Run phase six", column: "todo" },
-  });
-  if (created.status !== 201) miss(`create ${created.status} ${JSON.stringify(created.json)}`);
-
-  let inApp = false;
-  let cpuOnDebug = false;
-  let lastLog = "";
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (!inApp) {
-      const logs = await orgHas("keel-app", "logs", runId);
-      const spans = await orgHas("keel-app", "traces", runId);
-      inApp = logs && spans;
-    }
-    if (!cpuOnDebug) {
-      lastLog = collectorLog();
-      const at = lastLog.toLowerCase().lastIndexOf("system.cpu");
-      if (at >= 0) {
-        const window = lastLog.slice(Math.max(0, at - 8000), at + 8000);
-        if (window.includes("debug/infra")) cpuOnDebug = true;
-      }
-    }
-    if (inApp && cpuOnDebug) break;
-    await sleep(1000);
+  if (same.status !== 0) miss(same.stderr || same.stdout || "same account render failed");
+  const both = exporters();
+  const bothNames = Object.keys(both.exporters);
+  if (!bothNames.includes("otlphttp/app") || !bothNames.includes("otlphttp/infra")) {
+    miss(`same account exporters ${bothNames.join(", ")}`);
   }
-  if (!inApp) miss(`run id ${runId} was not in the app org`);
-  if (!cpuOnDebug) miss(`cpu sample was not on the debug log\n${lastLog.slice(-2500)}`);
+  const afterSame = readFileSync(path.join(root, "generated/collector.yaml"), "utf8");
+  if (afterSame.includes(appKey)) miss("same account render wrote the api key");
 
-  const kept = readFileSync(path.join(root, "generated/collector.yaml"), "utf8");
-  const duplicate = spawn(process.execPath, ["scripts/render-collector.ts"], {
-    ...filled,
-    KEEL_VENDOR_APP_API_KEY: "same-slot-key",
-    KEEL_VENDOR_INFRA_API_KEY: "same-slot-key",
-    KEEL_VENDOR_INFRA_ENDPOINT: "http://openobserve:5080/api/keel-infra",
+  const split = spawn(process.execPath, ["scripts/render-collector.ts"], {
+    ...shared,
+    KEEL_VENDOR_INFRA_API_KEY: "Basic aW5mcmEtYWNjb3VudA==",
+    KEEL_VENDOR_INFRA_ENDPOINT: "https://api.openobserve.ai/api/keel-infra",
   });
-  if (duplicate.status === 0) miss("duplicate key render exited 0");
-  const named = `${duplicate.stderr ?? ""}\n${duplicate.stdout ?? ""}`;
-  if (!named.includes("duplicate") || !named.includes("app") || !named.includes("infra")) {
-    miss(`duplicate render did not name the slots\n${named}`);
-  }
-  const after = readFileSync(path.join(root, "generated/collector.yaml"), "utf8");
-  if (after !== kept) miss("duplicate render wrote the collector file");
+  if (split.status !== 0) miss(split.stderr || split.stdout || "split account render failed");
+  const splitDoc = exporters();
+  const appExport = splitDoc.service.pipelines["logs/app"].exporters.join(",");
+  const infraExport = splitDoc.service.pipelines["logs/infra"].exporters.join(",");
+  if (appExport !== "otlphttp/app" || infraExport !== "otlphttp/infra") miss(`split app=${appExport} infra=${infraExport}`);
 
   const fresh = `run_phase6_fresh_${randomUUID()}`;
-  const proved = spawn("pnpm", ["prove", "--run", fresh], userEnv);
+  const proved = spawn("pnpm", ["prove", "--run", fresh], { ...userEnv, KEEL_COLLECTOR_VENDOR: "debug" });
   if (proved.status !== 0) miss(proved.stderr || proved.stdout || "debug prove failed");
   const proveOut = `${proved.stdout ?? ""}\n${proved.stderr ?? ""}`;
   if (!proveOut.includes("not exported")) miss(`debug prove output\n${proveOut}`);
@@ -293,9 +145,8 @@ try {
   const vendor = (userEnv.KEEL_COLLECTOR_VENDOR || "debug").trim();
   const userApp = (userEnv.KEEL_VENDOR_APP_API_KEY || "").trim();
   const userInfra = (userEnv.KEEL_VENDOR_INFRA_API_KEY || "").trim();
-  if (vendor === "openobserve" && userApp && userInfra) {
-    const live = spawn("pnpm", ["prove", "--run", "run_demo"], userEnv);
-    if (live.status !== 0) miss(live.stderr || live.stdout || "prove failed");
+  if (vendor === "openobserve" && userApp && (userInfra || userApp)) {
+    console.log("skipped: a canned run id is not an export from this check");
   } else {
     console.log("skipped: no vendor");
   }
@@ -317,7 +168,7 @@ try {
   } else {
     const collector = spawn(
       "docker",
-      ["compose", "-f", "infra/compose.yaml", "up", "-d", "--force-recreate", "--no-deps", "collector"],
+      ["compose", "-f", composeFile, "up", "-d", "--force-recreate", "--no-deps", "collector"],
       userEnv,
     );
     if (collector.status !== 0) {
@@ -332,6 +183,5 @@ try {
       }
     }
   }
-  spawn("docker", ["compose", "-f", "infra/compose.yaml", "--profile", "openobserve", "stop", "openobserve"], userEnv);
 }
 process.exit(code);

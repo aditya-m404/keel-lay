@@ -44,16 +44,25 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=yes "${{ secrets.KEEL_SSH_TARGET }}" "umask 077 && cat > /root/keel.env && chmod 600 /root/keel.env" <<EOF
           KEEL_ENV=production
-          KEEL_SESSION_SECRET=${{ secrets.KEEL_SESSION_SECRET }}
-          KEEL_SEED_PASSWORD=${{ secrets.KEEL_SEED_PASSWORD }}
+          KEEL_COLLECTOR_VENDOR=${{ secrets.KEEL_COLLECTOR_VENDOR }}
+          KEEL_PROD_WEB_ORIGIN=${{ secrets.KEEL_PUBLIC_ORIGIN }}
+          KEEL_PROD_API_ORIGIN=${{ secrets.KEEL_PUBLIC_ORIGIN }}
+          KEEL_PROD_STUDIO_ORIGIN=${{ secrets.KEEL_PUBLIC_ORIGIN }}
+          KEEL_PROD_SESSION_SECRET=${{ secrets.KEEL_SESSION_SECRET }}
+          KEEL_PROD_SEED_PASSWORD=${{ secrets.KEEL_SEED_PASSWORD }}
+          KEEL_PROD_SEED=0
+          KEEL_VENDOR_APP_ENDPOINT=${{ secrets.KEEL_VENDOR_APP_ENDPOINT }}
           KEEL_VENDOR_APP_API_KEY=${{ secrets.KEEL_VENDOR_APP_API_KEY }}
+          KEEL_VENDOR_APP_SITE=${{ secrets.KEEL_VENDOR_APP_SITE }}
+          KEEL_VENDOR_INFRA_ENDPOINT=${{ secrets.KEEL_VENDOR_INFRA_ENDPOINT }}
           KEEL_VENDOR_INFRA_API_KEY=${{ secrets.KEEL_VENDOR_INFRA_API_KEY }}
+          KEEL_VENDOR_INFRA_SITE=${{ secrets.KEEL_VENDOR_INFRA_SITE }}
           EOF
       - name: Roll forward
         run: |
           tag="${{ steps.tag.outputs.value }}"
           ssh -o StrictHostKeyChecking=yes "${{ secrets.KEEL_SSH_TARGET }}" \
-            "cd /opt/keel && KEEL_IMAGE_TAG='${tag}' docker compose -f infra/compose.yaml pull && KEEL_IMAGE_TAG='${tag}' docker compose -f infra/compose.yaml up -d"
+            "set -a && . /root/keel.env && set +a && cd /opt/keel && KEEL_IMAGE_TAG='${tag}' docker compose -f infra/compose.prod.yaml pull && KEEL_IMAGE_TAG='${tag}' docker compose -f infra/compose.prod.yaml up -d"
       - name: Ready
         run: curl --fail --retry 20 --retry-delay 3 "${{ secrets.KEEL_PUBLIC_ORIGIN }}/ready"
       - name: Record the image tag

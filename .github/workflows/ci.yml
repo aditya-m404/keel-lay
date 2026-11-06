@@ -22,4 +22,4 @@ jobs:
       - name: Validate the collector
         run: docker run --rm -v "$PWD/generated/collector.yaml:/etc/otelcol/config.yaml:ro" otel/opentelemetry-collector-contrib:0.128.0 validate --config=/etc/otelcol/config.yaml
       - name: Build images
-        run: docker compose -f infra/compose.yaml build api web studio
+        run: docker compose -f infra/compose.local-prod.yaml build api web studio

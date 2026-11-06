@@ -37,9 +37,10 @@ const EMITTED = [
   "keel.card.created",
   "keel.card.moved",
   "keel.comment.created",
+  "keel.card.starred",
 ] as const;
 
-export type BusinessMetric = "keel.card.created" | "keel.card.moved" | "keel.comment.created";
+export type BusinessMetric = "keel.card.created" | "keel.card.moved" | "keel.comment.created" | "keel.card.starred";
 
 export type RequestSignal = {
   method: string;
@@ -192,10 +193,12 @@ export function startTelemetry(options?: {
   const created = counter("keel.card.created");
   const moved = counter("keel.card.moved");
   const commented = counter("keel.comment.created");
+  const starred = counter("keel.card.starred");
   const business = {
     "keel.card.created": created,
     "keel.card.moved": moved,
     "keel.comment.created": commented,
+    "keel.card.starred": starred,
   };
 
   async function flush(): Promise<void> {
@@ -224,6 +227,7 @@ export function startTelemetry(options?: {
       if (signal.business === "keel.card.created" && signal.status === 201) business[signal.business].add(1, attributes);
       if (signal.business === "keel.card.moved" && signal.status === 200) business[signal.business].add(1, attributes);
       if (signal.business === "keel.comment.created" && signal.status === 201) business[signal.business].add(1, attributes);
+      if (signal.business === "keel.card.starred" && signal.status === 201) business[signal.business].add(1, attributes);
       await flush();
     },
     flush,

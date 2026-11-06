@@ -57,7 +57,7 @@ function removeFixtures() {
 }
 
 function collectorLog() {
-  const result = spawnSync("docker", ["compose", "-f", "infra/compose.yaml", "logs", "--since", "3m", "--no-color", "collector"], {
+  const result = spawnSync("docker", ["compose", "-f", "infra/compose.local.yaml", "logs", "--since", "3m", "--no-color", "collector"], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,

@@ -5,6 +5,7 @@ import { Drawer } from "./screens/drawer.tsx";
 import { SearchPage } from "./screens/search.tsx";
 import { Shell } from "./screens/shell.tsx";
 import { SignIn } from "./screens/sign-in.tsx";
+import { SignUp } from "./screens/sign-up.tsx";
 import { boardStore, snapshotFromCards } from "./store/board.ts";
 import { commentStore } from "./store/comments.ts";
 import { sessionStore, useSession } from "./store/session.ts";
@@ -70,6 +71,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Home /> },
       { path: "sign-in", element: <SignIn /> },
+      { path: "sign-up", element: <SignUp /> },
       {
         path: "boards/:boardId",
         element: <BoardPage />,

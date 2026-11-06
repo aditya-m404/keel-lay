@@ -17,7 +17,8 @@ function loadEnv() {
     if (!trimmed || trimmed.startsWith("#")) continue;
     const eq = trimmed.indexOf("=");
     if (eq <= 0) continue;
-    process.env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+    const key = trimmed.slice(0, eq);
+    if (process.env[key] === undefined) process.env[key] = trimmed.slice(eq + 1);
   }
 }
 

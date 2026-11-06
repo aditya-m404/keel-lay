@@ -194,8 +194,8 @@ async function listen(): Promise<void> {
   const app = createStudioApp();
   const api = getRequestListener(app.fetch);
   const client = process.env.KEEL_STUDIO_STATIC;
-  if (process.env.KEEL_TUNNEL_API) tunnel(4101, process.env.KEEL_TUNNEL_API);
-  if (process.env.KEEL_TUNNEL_WEB) tunnel(4100, process.env.KEEL_TUNNEL_WEB);
+  if (process.env.KEEL_TUNNEL_API) tunnel(Number(process.env.KEEL_TUNNEL_API_BIND || 4101), process.env.KEEL_TUNNEL_API);
+  if (process.env.KEEL_TUNNEL_WEB) tunnel(Number(process.env.KEEL_TUNNEL_WEB_BIND || 4100), process.env.KEEL_TUNNEL_WEB);
   const vite = client
     ? null
     : await (async () => {
@@ -234,7 +234,7 @@ async function listen(): Promise<void> {
       })();
     });
   });
-  server.listen(Number(url.port || 80), process.env.KEEL_BIND || url.hostname, () => {
+  server.listen(Number(process.env.KEEL_LISTEN_PORT || url.port || 80), process.env.KEEL_BIND || url.hostname, () => {
     console.log(`studio ${origin}`);
   });
 }

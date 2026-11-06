@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { api } from "../api.ts";
 import { sessionStore } from "../store/session.ts";
 
@@ -22,8 +22,10 @@ export function SignIn() {
   }
 
   return (
-    <form className="sign-in" onSubmit={onSubmit}>
+    <form className="gate" onSubmit={onSubmit}>
+      <p className="mark">Keel</p>
       <h1>Sign in</h1>
+      <p className="lede">Open the Launch board with your team account.</p>
       <label>
         Email
         <input name="email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} />
@@ -32,8 +34,9 @@ export function SignIn() {
         Password
         <input name="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
       </label>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <p className="alert" role="alert">{error}</p> : null}
       <button type="submit">Sign in</button>
+      <p className="switch">No account yet? <Link to="/sign-up">Create an account</Link></p>
     </form>
   );
 }

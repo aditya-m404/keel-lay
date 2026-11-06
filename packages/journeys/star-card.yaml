@@ -1,0 +1,44 @@
+id: star-card
+title: Star a card
+feature: cards.star
+actor: grace
+actors: [member, owner, viewer]
+metrics: [keel.card.starred]
+steps:
+  - id: sign-in
+    ui:
+      - { goto: /sign-in }
+      - { see: Sign in }
+      - { fill: { label: Email, text: grace@keel.test } }
+      - { fill: { label: Password, text: keel-local-only } }
+      - { click: Sign in }
+      - { see: Launch }
+    api:
+      method: POST
+      path: /session
+      body:
+        email: grace@keel.test
+        password: keel-local-only
+      expect: 201
+    thinkMs: { min: 200, max: 600 }
+  - id: open-card
+    ui:
+      - { goto: /boards/launch }
+      - { see: Draft the README }
+      - { click: Draft the README }
+      - { see: Star }
+    api:
+      method: GET
+      path: /cards/card_01
+      expect: 200
+    thinkMs: { min: 200, max: 600 }
+  - id: star
+    ui:
+      - { click: Star }
+      - { see: Starred }
+    api:
+      method: POST
+      path: /cards/card_01/stars
+      body: {}
+      expect: 201
+    thinkMs: { min: 200, max: 800 }

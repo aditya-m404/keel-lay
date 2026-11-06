@@ -453,8 +453,9 @@
     <thead><tr><th>Command</th><th>Effect</th></tr></thead>
     <tbody>
       <tr><td><code>./scripts/init</code></td><td>Copy <code>.env.example</code> to <code>.env</code> if missing. Mint <code>KEEL_SESSION_SECRET</code> when blank. Never print a secret.</td></tr>
-      <tr><td><code>./scripts/up</code></td><td>Local. Postgres and collector in Docker. API under <code>tsx watch</code>. Web and Studio under Vite.</td></tr>
-      <tr><td><code>./scripts/up prodlike</code></td><td>Local-prod. Build images if missing, or if <code>KEEL_REBUILD=1</code>. No source mounts. No watch.</td></tr>
+      <tr><td><code>./scripts/up</code></td><td>Local, via <code>infra/compose.local.yaml</code>. Postgres and the collector in Docker. API, web, and Studio on the host.</td></tr>
+      <tr><td><code>./scripts/up local-prod</code></td><td>Local-prod, via <code>infra/compose.local-prod.yaml</code>. Build images if missing, or if <code>KEEL_REBUILD=1</code>. No source mounts. No watch.</td></tr>
+      <tr><td><code>./scripts/up prod</code></td><td>Production, via <code>infra/compose.prod.yaml</code>. Registry images. Requires <code>KEEL_ENV=production</code>.</td></tr>
       <tr><td><code>./scripts/down</code></td><td>Stop what <code>up</code> started. Keep the Postgres volume.</td></tr>
       <tr><td><code>./scripts/down --wipe</code></td><td>Also delete the volume. Asks for confirmation.</td></tr>
       <tr><td><code>./scripts/status</code></td><td>Ports, health, which vendor, set or unset for each key. Values stay hidden.</td></tr>
@@ -467,12 +468,13 @@
   <table>
     <thead><tr><th>Process</th><th>Port</th></tr></thead>
     <tbody>
-      <tr><td>Keel web</td><td>4100</td></tr>
-      <tr><td>Keel API</td><td>4101</td></tr>
-      <tr><td>Studio</td><td>4102</td></tr>
-      <tr><td>Postgres</td><td>41532</td></tr>
-      <tr><td>Collector OTLP gRPC / HTTP</td><td>4417 / 4418</td></tr>
-      <tr><td>Optional OpenObserve</td><td>15081, profile <code>--with-openobserve</code> only</td></tr>
+      <tr><td>Local web / API / Studio</td><td>4100 / 4101 / 4102</td></tr>
+      <tr><td>Local Postgres</td><td>41532</td></tr>
+      <tr><td>Local collector OTLP gRPC / HTTP</td><td>4417 / 4418</td></tr>
+      <tr><td>Local-prod web / API / Studio</td><td>4200 / 4201 / 4202</td></tr>
+      <tr><td>Local-prod Postgres</td><td>42532</td></tr>
+      <tr><td>Local-prod collector OTLP gRPC / HTTP</td><td>4517 / 4518</td></tr>
+      <tr><td>Production web / Studio</td><td>8080 / 8082</td></tr>
     </tbody>
   </table>
 </section>
@@ -514,7 +516,7 @@
   <table>
     <thead><tr><th></th><th>local</th><th>local-prod</th><th>production</th></tr></thead>
     <tbody>
-      <tr><td>How it starts</td><td><code>./scripts/up</code></td><td><code>./scripts/up prodlike</code></td><td>GitHub Actions on <code>main</code></td></tr>
+      <tr><td>How it starts</td><td><code>./scripts/up</code></td><td><code>./scripts/up local-prod</code></td><td><code>./scripts/up prod</code> from GitHub Actions on <code>main</code></td></tr>
       <tr><td>App process</td><td>Host, file watch</td><td>Image, no watch</td><td>Same image shape, from the registry</td></tr>
       <tr><td>Database</td><td>Postgres container</td><td>Postgres container</td><td>Postgres container on the server</td></tr>
       <tr><td>Collector</td><td>Container, debug vendor by default</td><td>Same rendered config as production</td><td>Same file, production keys</td></tr>
@@ -583,7 +585,7 @@
   </div>
   <h3>Vendor switch</h3>
   <p><code>KEEL_COLLECTOR_VENDOR</code> is <code>debug</code>, <code>datadog</code>, <code>sentry</code>, or <code>openobserve</code>. <code>scripts/up</code> renders <code>generated/collector.yaml</code> from <code>collector/base.yaml</code> plus one fragment. Generated files stay gitignored. Keys are environment variables: <code>KEEL_VENDOR_APP_API_KEY</code> and <code>KEEL_VENDOR_INFRA_API_KEY</code>, plus an endpoint and a site or org for each. <code>debug</code> prints to the collector log and needs no key. Studio labels that run “not exported”.</p>
-  <p>OpenObserve means two organizations, <code>keel-app</code> and <code>keel-infra</code>, either in a cloud account or in the optional container on port <code>15081</code>. That container belongs to Keel. It is started only with <code>./scripts/up --with-openobserve</code>.</p>
+  <p>OpenObserve is a cloud account. The application account is <code>KEEL_VENDOR_APP_ENDPOINT</code>, <code>KEEL_VENDOR_APP_API_KEY</code>, and <code>KEEL_VENDOR_APP_SITE</code>. Leave the infra triple empty to use that same account, or set it to a different account. The same key in both slots is also allowed. Keel does not run an OpenObserve server.</p>
   <h3>App metrics worth querying</h3>
   <ul>
     <li><code>http.server.request.duration</code> histogram, attributes <code>http.route</code> (the template, never the raw id), <code>http.response.status_code</code>, <code>http.request.method</code>.</li>
@@ -789,7 +791,7 @@ KEEL_VENDOR_INFRA_SITE=</code></pre>
   </article>
   <article class="mile">
     <h3><span class="tag">M3</span> Two accounts, one vendor</h3>
-    <p>OpenObserve first, on port <code>15081</code> or a cloud org pair, because it costs nothing and takes all three signals. Datadog next when keys exist. Routing by <code>keel.signal</code>. <code>pnpm prove</code>.</p>
+    <p>OpenObserve cloud first, one account or two, because it takes all three signals. Datadog next when keys exist. Routing by <code>keel.signal</code>. <code>pnpm prove</code>.</p>
     <p><strong>Done when</strong> a demo run id is in the app org’s logs and traces and missing from the infra org’s logs, and the request histogram is queryable in the app org.</p>
   </article>
   <article class="mile">

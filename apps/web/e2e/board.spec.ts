@@ -17,7 +17,8 @@ function loadEnv() {
     if (!trimmed || trimmed.startsWith("#")) continue;
     const eq = trimmed.indexOf("=");
     if (eq <= 0) continue;
-    process.env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+    const key = trimmed.slice(0, eq);
+    if (process.env[key] === undefined) process.env[key] = trimmed.slice(eq + 1);
   }
 }
 
@@ -54,7 +55,7 @@ function watch(page: Page): Hit[] {
   page.on("request", (request) => {
     if (request.resourceType() !== "fetch" && request.resourceType() !== "xhr") return;
     const url = new URL(request.url());
-    if (url.origin !== "http://127.0.0.1:4100") return;
+    if (url.origin !== new URL(process.env.KEEL_WEB_ORIGIN ?? "http://127.0.0.1:4100").origin) return;
     hits.push({ method: request.method(), path: url.pathname, search: url.search });
   });
   return hits;

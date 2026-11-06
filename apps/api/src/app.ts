@@ -45,7 +45,7 @@ async function listen(): Promise<void> {
     client.release();
   }
   const app = createApp(pool);
-  const port = Number(url.port || 80);
+  const port = Number(process.env.KEEL_LISTEN_PORT || url.port || 80);
   const hostname = process.env.KEEL_BIND || url.hostname;
   serve({ fetch: app.fetch, port, hostname }, () => {
     console.log(`api ${origin}`);

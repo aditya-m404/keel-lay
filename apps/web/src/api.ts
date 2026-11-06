@@ -37,6 +37,8 @@ export const api = {
   session: () => request<{ user: User }>("/session"),
   signIn: (email: string, password: string) =>
     request<{ user: User }>("/session", { method: "POST", body: JSON.stringify({ email, password }) }),
+  signUp: (name: string, email: string, password: string) =>
+    request<{ user: User }>("/session/sign-up", { method: "POST", body: JSON.stringify({ name, email, password }) }),
   signOut: () => request<null>("/session", { method: "DELETE" }),
   board: (boardId: string) => request<BoardResponse>(`/boards/${boardId}`),
   changes: (boardId: string, since: number) =>
@@ -53,6 +55,12 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
       headers: { "if-match": String(version) },
+    }),
+  star: (cardId: string, key: string) =>
+    request<{ starred: boolean }>(`/cards/${cardId}/stars`, {
+      method: "POST",
+      body: JSON.stringify({}),
+      headers: { "idempotency-key": key },
     }),
   comment: (cardId: string, body: string, key: string) =>
     request<CommentResult>(`/cards/${cardId}/comments`, {

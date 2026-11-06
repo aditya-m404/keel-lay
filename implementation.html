@@ -748,10 +748,10 @@ scripts/render-collector.ts</code></pre>
 
 <section id="p6">
   <h2><span class="tag">Phase 6</span> Accounts and prove</h2>
-  <p>OpenObserve is the first vendor. Two orgs, <code>keel-app</code> and <code>keel-infra</code>. The prove script is the phase gate.</p>
+  <p>OpenObserve is the first vendor, and it is an account Keel connects to. Keel does not run an OpenObserve server. The prove script is the phase gate.</p>
 
   <h3>Config</h3>
-  <p><code>KEEL_COLLECTOR_VENDOR=openobserve</code> selects <code>collector/vendors/openobserve.yaml</code>. The fragment has two exporters. The app exporter uses <code>KEEL_VENDOR_APP_ENDPOINT</code> and <code>KEEL_VENDOR_APP_API_KEY</code>. The infra exporter uses the infra pair. Routing is on <code>keel.signal</code>. An empty key leaves that pipeline on the debug log. <code>doctor</code> refuses to start export when both keys are non-empty and equal.</p>
+  <p><code>KEEL_COLLECTOR_VENDOR=openobserve</code> selects <code>collector/vendors/openobserve.yaml</code>. The fragment has two exporters. The app exporter uses <code>KEEL_VENDOR_APP_ENDPOINT</code> and <code>KEEL_VENDOR_APP_API_KEY</code>. The infra exporter uses the infra pair when those are set. An empty infra pair uses the application account. The same key in both slots is allowed, and so is a different account. Routing is on <code>keel.signal</code>. The rendered file keeps the key in the environment and does not copy the secret.</p>
   <p>Host CPU, memory, Postgres connections, database size, and collector queue are scraped by the collector about every 15 seconds, marked <code>keel.signal=infra</code>, with no run id.</p>
 
   <h3>Prove</h3>
@@ -760,8 +760,8 @@ scripts/render-collector.ts</code></pre>
   <h3>Test script</h3>
   <p><code>scripts/phases/phase-06.mjs</code></p>
   <ol>
-    <li>Render the config with an app key set and the infra key empty. The rendered file contains one OpenObserve exporter and one debug exporter. A card create’s run id appears in the app destination and the CPU sample appears on the debug log.</li>
-    <li>Render with the same key in both slots. The render process exits non-zero and names the duplicate.</li>
+    <li>Render the config with an app key set and the infra key empty. Both pipelines use that one OpenObserve exporter. The rendered file does not contain the key.</li>
+    <li>Render with the same key in both slots, and again with a different infra account. Both renders exit 0. The split render sends infra through its own exporter.</li>
     <li>Debug prove for a fresh run id exits 0 and prints <code>not exported</code>.</li>
     <li>When <code>KEEL_COLLECTOR_VENDOR=openobserve</code> and both keys are set, prove for a demo run id exits 0. Otherwise the script prints <code>skipped: no vendor</code> and exits 0.</li>
   </ol>
@@ -778,7 +778,7 @@ scripts/render-collector.ts</code></pre>
 <pre><code>{
   "targets": [
     { "name": "local", "api": "http://127.0.0.1:4101", "web": "http://127.0.0.1:4100", "host": "127.0.0.1" },
-    { "name": "local-prod", "api": "http://127.0.0.1:4101", "web": "http://127.0.0.1:4100", "host": "127.0.0.1" },
+    { "name": "local-prod", "api": "http://127.0.0.1:4201", "web": "http://127.0.0.1:4200", "host": "127.0.0.1" },
     { "name": "production", "api": "https://keel.example", "web": "https://keel.example", "host": "keel.example" }
   ]
 }</code></pre>
@@ -878,7 +878,7 @@ scripts/render-collector.ts</code></pre>
   <p>The same board, API, Studio, Postgres, and collector run from images. Source mounts are absent. File watch is absent.</p>
 
   <h3>Images</h3>
-  <p>Dockerfiles for <code>keel-web</code>, <code>keel-api</code>, and <code>keel-studio</code>. The web image serves the built SPA and falls back to <code>index.html</code> for client routes. The API image runs <code>node</code> on the compiled output and migrates on boot. Compose healthchecks gate order: Postgres, then API <code>/ready</code>, then web and Studio. <code>./scripts/up prodlike</code> builds when the image is missing or <code>KEEL_REBUILD=1</code>. <code>KEEL_ENV=local-prod</code>.</p>
+  <p>Dockerfiles for <code>keel-web</code>, <code>keel-api</code>, and <code>keel-studio</code>. The web image serves the built SPA and falls back to <code>index.html</code> for client routes. The API image runs <code>node</code> on the compiled output and migrates on boot. Compose healthchecks gate order: Postgres, then API <code>/ready</code>, then web and Studio. <code>./scripts/up local-prod</code> uses <code>infra/compose.local-prod.yaml</code> and host ports 4200, 4201, 4202, 42532, and 4518. It builds when the image is missing or <code>KEEL_REBUILD=1</code>. <code>KEEL_ENV=local-prod</code>. Local keeps its own compose file and ports, so the two stacks do not share a database.</p>
 
   <h3>Test script</h3>
   <p><code>scripts/phases/phase-10.mjs</code></p>

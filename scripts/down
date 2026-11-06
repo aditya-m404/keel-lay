@@ -2,24 +2,48 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-for file in generated/studio.pid generated/web.pid generated/api.pid; do
-  if [[ -f "$file" ]]; then
-    pid="$(cat "$file")"
-    kill "$pid" 2>/dev/null || true
-    rm -f "$file"
-  fi
+target="local"
+wipe=0
+for arg in "$@"; do
+  case "$arg" in
+    --wipe) wipe=1 ;;
+    local | local-prod | prod) target="$arg" ;;
+    *)
+      echo "usage: ./scripts/down [local|local-prod|prod] [--wipe]" >&2
+      exit 1
+      ;;
+  esac
 done
 
-if [[ "${1:-}" == "--wipe" ]]; then
+case "$target" in
+  local) compose_file="infra/compose.local.yaml" ;;
+  local-prod) compose_file="infra/compose.local-prod.yaml" ;;
+  prod) compose_file="infra/compose.prod.yaml" ;;
+esac
+
+if [[ "$target" == "local" ]]; then
+  for file in generated/studio.pid generated/web.pid generated/api.pid; do
+    if [[ -f "$file" ]]; then
+      pid="$(cat "$file")"
+      kill "$pid" 2>/dev/null || true
+      rm -f "$file"
+    fi
+  done
+fi
+
+echo "stopping $target"
+if [[ "$wipe" == 1 ]]; then
   if [[ "${KEEL_WIPE:-}" != "yes" ]]; then
-    printf "Delete the Postgres volume? Type wipe: "
+    printf "Delete the %s Postgres volume? Type wipe: " "$target"
     read -r answer
     if [[ "$answer" != "wipe" ]]; then
       echo "cancelled"
       exit 1
     fi
   fi
-  docker compose -f infra/compose.yaml down -v
+  docker compose -f "$compose_file" down -v
+  echo "$target wiped"
 else
-  docker compose -f infra/compose.yaml stop
+  docker compose -f "$compose_file" stop
+  echo "$target stopped"
 fi

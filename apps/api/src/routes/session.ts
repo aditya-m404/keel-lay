@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import type pg from "pg";
-import { signInBody, type User } from "@keel/contracts/session";
+import { signInBody, signUpBody, type User } from "@keel/contracts/session";
 import { hashPassword, verifyPassword } from "../db/password.ts";
 import { newId } from "../ids.ts";
 
@@ -41,8 +41,61 @@ async function readUser(pool: pg.Pool, token: string | undefined): Promise<User 
   return { id: row.id, email: row.email, name: row.name, role: row.role };
 }
 
+function publicUser(row: User): User {
+  return { id: row.id, email: row.email, name: row.name, role: row.role };
+}
+
+async function startSession(pool: pg.Pool, userId: string, token: string): Promise<void> {
+  const expires = new Date(Date.now() + MAX_AGE * 1000);
+  await pool.query(
+    "INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
+    [newId("ses_"), userId, tokenHash(token), expires],
+  );
+}
+
 export function sessionRoutes(pool: pg.Pool): Hono {
   const app = new Hono();
+
+  app.post("/session/sign-up", async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: { code: "invalid_body", message: "Body must be JSON." } }, 400);
+    }
+    const parsed = signUpBody.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: { code: "invalid_body", message: "Sign-up body is invalid." } }, 400);
+    }
+    const name = parsed.data.name.trim();
+    const email = parsed.data.email.trim().toLowerCase();
+    const password = parsed.data.password;
+    if (!name || name.length > 80) {
+      return c.json({ error: { code: "invalid_name", message: "Name must be 1 to 80 characters." } }, 400);
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return c.json({ error: { code: "invalid_email", message: "Email is not valid." } }, 400);
+    }
+    if (password.length < 8 || password.length > 200) {
+      return c.json({ error: { code: "invalid_password", message: "Password must be 8 to 200 characters." } }, 400);
+    }
+    const user: User = { id: newId("user_"), email, name, role: "member" };
+    try {
+      await pool.query(
+        "INSERT INTO users (id, email, name, role, password_hash) VALUES ($1, $2, $3, 'member', $4)",
+        [user.id, email, name, hashPassword(password)],
+      );
+    } catch (error) {
+      if ((error as { code?: string }).code === "23505") {
+        return c.json({ error: { code: "conflict", message: "An account with that email already exists." } }, 409);
+      }
+      throw error;
+    }
+    const token = newId("ses_");
+    await startSession(pool, user.id, token);
+    setCookie(c, COOKIE, token, { ...cookieOptions(), maxAge: MAX_AGE });
+    return c.json({ user: publicUser(user) }, 201);
+  });
 
   app.post("/session", async (c) => {
     let body: unknown;
@@ -66,13 +119,9 @@ export function sessionRoutes(pool: pg.Pool): Hono {
     if (!row || !matches) return c.json(INVALID, 401);
 
     const token = newId("ses_");
-    const expires = new Date(Date.now() + MAX_AGE * 1000);
-    await pool.query(
-      "INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
-      [newId("ses_"), row.id, tokenHash(token), expires],
-    );
+    await startSession(pool, row.id, token);
     setCookie(c, COOKIE, token, { ...cookieOptions(), maxAge: MAX_AGE });
-    return c.json({ user: { id: row.id, email: row.email, name: row.name, role: row.role } }, 201);
+    return c.json({ user: publicUser(row) }, 201);
   });
 
   app.get("/session", async (c) => {

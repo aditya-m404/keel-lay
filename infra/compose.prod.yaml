@@ -1,0 +1,97 @@
+# Production. Registry images, its own volume, and host ports that are not the laptop stacks.
+name: keel-prod
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: keel
+      POSTGRES_PASSWORD: keel
+      POSTGRES_DB: keel
+    volumes:
+      - keel_prod_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keel -d keel"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      KEEL_VENDOR_APP_ENDPOINT: "${KEEL_VENDOR_APP_ENDPOINT:-}"
+      KEEL_VENDOR_APP_API_KEY: "${KEEL_VENDOR_APP_API_KEY:-}"
+      KEEL_VENDOR_INFRA_ENDPOINT: "${KEEL_VENDOR_INFRA_ENDPOINT:-}"
+      KEEL_VENDOR_INFRA_API_KEY: "${KEEL_VENDOR_INFRA_API_KEY:-}"
+    volumes:
+      - ../generated/collector.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: ghcr.io/fireweave-hq-demo/keel-api:${KEEL_IMAGE_TAG:-latest}
+    environment:
+      KEEL_ENV: production
+      KEEL_BIND: 0.0.0.0
+      KEEL_LISTEN_PORT: "4101"
+      KEEL_API_ORIGIN: ${KEEL_PROD_API_ORIGIN:-https://keel.example}
+      KEEL_WEB_ORIGIN: ${KEEL_PROD_WEB_ORIGIN:-https://keel.example}
+      KEEL_STUDIO_ORIGIN: ${KEEL_PROD_STUDIO_ORIGIN:-https://keel.example}
+      DATABASE_URL: postgres://keel:keel@postgres:5432/keel
+      KEEL_SESSION_SECRET: ${KEEL_PROD_SESSION_SECRET:-}
+      KEEL_SEED_PASSWORD: ${KEEL_PROD_SEED_PASSWORD:-}
+      KEEL_SEED: ${KEEL_PROD_SEED:-0}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4418
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4101/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  web:
+    image: ghcr.io/fireweave-hq-demo/keel-web:${KEEL_IMAGE_TAG:-latest}
+    environment:
+      KEEL_LISTEN_PORT: "4100"
+      KEEL_WEB_ORIGIN: ${KEEL_PROD_WEB_ORIGIN:-https://keel.example}
+      KEEL_API_UPSTREAM: http://api:4101
+    ports:
+      - "${KEEL_HTTP_PUBLISH:-127.0.0.1:8080}:4100"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  studio:
+    image: ghcr.io/fireweave-hq-demo/keel-studio:${KEEL_IMAGE_TAG:-latest}
+    environment:
+      KEEL_BIND: 0.0.0.0
+      KEEL_LISTEN_PORT: "4102"
+      KEEL_STUDIO_ORIGIN: ${KEEL_PROD_STUDIO_ORIGIN:-https://keel.example}
+      KEEL_STUDIO_STATIC: /src/apps/studio/dist
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    ports:
+      - "127.0.0.1:8082:4102"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4102/targets').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  keel_prod_pg:

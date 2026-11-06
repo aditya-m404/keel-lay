@@ -14,7 +14,9 @@ export function Drawer() {
   const [title, setTitle] = useState(card?.title ?? "");
   const [comment, setComment] = useState("");
   const [error, setError] = useState("");
+  const [starred, setStarred] = useState(false);
   const keyRef = useRef<string | null>(null);
+  const starKey = useRef<string | null>(null);
 
   useEffect(() => {
     setTitle(card?.title ?? "");
@@ -43,6 +45,19 @@ export function Drawer() {
     }
   }
 
+  async function onStar() {
+    if (starred) return;
+    if (!starKey.current) starKey.current = crypto.randomUUID();
+    try {
+      await api.star(cardId, starKey.current);
+      setStarred(true);
+      setError("");
+    } catch (caught) {
+      starKey.current = null;
+      setError(caught instanceof Error ? caught.message : "The card could not be starred.");
+    }
+  }
+
   async function sendComment(event: FormEvent) {
     event.preventDefault();
     const text = comment.trim();
@@ -64,12 +79,16 @@ export function Drawer() {
 
   return (
     <aside className="drawer" role="dialog" aria-label={card.title}>
-      <Link to={`/boards/${boardId}`}>Close</Link>
-      <h2>{labels[card.column]}</h2>
+      <div className="drawer-top">
+        <p className="eyebrow">{labels[card.column]}</p>
+        <Link to={`/boards/${boardId}`}>Close</Link>
+      </div>
+      <h2>{card.title}</h2>
       <label>
         Title
         <input value={title} onChange={(event) => setTitle(event.target.value)} onBlur={() => void saveTitle()} />
       </label>
+      <button className="ghost" type="button" onClick={() => void onStar()}>{starred ? "Starred" : "Star"}</button>
       {error ? <p className="alert" role="alert">{error}</p> : null}
       <ul className="comments">
         {(thread?.comments ?? []).map((item) => (

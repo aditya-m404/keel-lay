@@ -41,10 +41,16 @@ console.log(`env ${keelEnv}`);
 console.log(`vendor ${vendor}`);
 
 const checks: [string, string, boolean][] = [
-  ["web", `${(env.get("KEEL_WEB_ORIGIN") ?? "http://127.0.0.1:4100").replace(/\/$/, "")}/`, false],
-  ["api", `${(env.get("KEEL_API_ORIGIN") ?? "http://127.0.0.1:4101").replace(/\/$/, "")}/health`, false],
-  ["studio", `${(env.get("KEEL_STUDIO_ORIGIN") ?? "http://127.0.0.1:4102").replace(/\/$/, "")}/targets`, false],
-  ["collector", "http://127.0.0.1:4418/v1/logs", true],
+  ["local web", `${(env.get("KEEL_WEB_ORIGIN") ?? "http://127.0.0.1:4100").replace(/\/$/, "")}/`, false],
+  ["local api", `${(env.get("KEEL_API_ORIGIN") ?? "http://127.0.0.1:4101").replace(/\/$/, "")}/health`, false],
+  ["local studio", `${(env.get("KEEL_STUDIO_ORIGIN") ?? "http://127.0.0.1:4102").replace(/\/$/, "")}/targets`, false],
+  ["local collector", "http://127.0.0.1:4418/v1/logs", true],
+  ["local-prod web", "http://127.0.0.1:4200/", false],
+  ["local-prod api", "http://127.0.0.1:4201/health", false],
+  ["local-prod studio", "http://127.0.0.1:4202/targets", false],
+  ["local-prod collector", "http://127.0.0.1:4518/v1/logs", true],
+  ["prod web", "http://127.0.0.1:8080/", false],
+  ["prod studio", "http://127.0.0.1:8082/targets", false],
 ];
 for (const [name, url, anyResponse] of checks) {
   console.log(`${name} ${await probe(url, anyResponse)}`);
@@ -56,14 +62,20 @@ for (const key of [...keys].sort()) {
   console.log(`${key} ${value === undefined ? "missing" : value.trim() === "" ? "empty" : "set"}`);
 }
 
-const compose = spawnSync(
-  "docker",
-  ["compose", "-f", "infra/compose.yaml", "ps", "--format", "{{.Service}} {{.Status}}"],
-  { cwd: root, encoding: "utf8" },
-);
-if (compose.status !== 0) {
-  console.log("docker down");
-} else {
+for (const [stack, file] of [
+  ["local", "infra/compose.local.yaml"],
+  ["local-prod", "infra/compose.local-prod.yaml"],
+  ["prod", "infra/compose.prod.yaml"],
+] as const) {
+  const compose = spawnSync(
+    "docker",
+    ["compose", "-f", file, "ps", "--format", "{{.Service}} {{.Status}}"],
+    { cwd: root, encoding: "utf8" },
+  );
+  if (compose.status !== 0) {
+    console.log(`${stack} docker down`);
+    continue;
+  }
   const rows = (compose.stdout ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
-  console.log(rows.length === 0 ? "containers none" : rows.map((row) => `container ${row}`).join("\n"));
+  console.log(rows.length === 0 ? `${stack} containers none` : rows.map((row) => `${stack} container ${row}`).join("\n"));
 }

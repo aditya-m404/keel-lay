@@ -1,4 +1,4 @@
-import { Link, Outlet, useNavigate } from "react-router";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { api } from "../api.ts";
 import { sessionStore, useSession } from "../store/session.ts";
 import { SearchBox } from "./search.tsx";
@@ -6,6 +6,8 @@ import { SearchBox } from "./search.tsx";
 export function Shell() {
   const session = useSession();
   const navigate = useNavigate();
+  const location = useLocation();
+  const gate = location.pathname === "/sign-in" || location.pathname === "/sign-up";
 
   async function signOut() {
     await api.signOut();
@@ -14,18 +16,28 @@ export function Shell() {
   }
 
   return (
-    <div className="app">
-      <header className="top">
-        <Link className="brand" to={session.status === "user" ? "/boards/launch" : "/sign-in"}>Keel</Link>
-        {session.status === "user" ? (
-          <>
-            <SearchBox />
-            <span className="who">{session.user.name}</span>
-            <button type="button" onClick={() => void signOut()}>Sign out</button>
-          </>
-        ) : null}
-      </header>
-      <main className="page">
+    <div className={gate ? "app gate-app" : "app"}>
+      {gate ? null : (
+        <header className="top">
+          <Link className="brand" to={session.status === "user" ? "/boards/launch" : "/sign-in"}>
+            <span className="brand-mark" aria-hidden="true">K</span>
+            Keel
+          </Link>
+          {session.status === "user" ? (
+            <>
+              <SearchBox />
+              <span className="who">
+                <span className="avatar" aria-hidden="true">{session.user.name.slice(0, 1)}</span>
+                {session.user.name}
+              </span>
+              <button className="ghost" type="button" onClick={() => void signOut()}>Sign out</button>
+            </>
+          ) : (
+            <Link className="ghost linkish" to="/sign-in">Sign in</Link>
+          )}
+        </header>
+      )}
+      <main className={gate ? "gate-main" : "page"}>
         <Outlet />
       </main>
     </div>

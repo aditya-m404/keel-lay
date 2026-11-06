@@ -1,0 +1,40 @@
+# Local. Host processes use 4100, 4101, and 4102. This file is only Postgres and the collector.
+name: keel
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: keel
+      POSTGRES_PASSWORD: keel
+      POSTGRES_DB: keel
+    ports:
+      - "127.0.0.1:41532:5432"
+    volumes:
+      - keel_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keel -d keel"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      KEEL_VENDOR_APP_ENDPOINT: "${KEEL_VENDOR_APP_ENDPOINT:-}"
+      KEEL_VENDOR_APP_API_KEY: "${KEEL_VENDOR_APP_API_KEY:-}"
+      KEEL_VENDOR_INFRA_ENDPOINT: "${KEEL_VENDOR_INFRA_ENDPOINT:-}"
+      KEEL_VENDOR_INFRA_API_KEY: "${KEEL_VENDOR_INFRA_API_KEY:-}"
+    volumes:
+      - ../generated/collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "127.0.0.1:4417:4417"
+      - "127.0.0.1:4418:4418"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  keel_pg:

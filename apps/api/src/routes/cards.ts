@@ -395,5 +395,46 @@ export function cardRoutes(pool: pg.Pool): Hono {
     );
   });
 
+  app.post("/cards/:id/stars", async (c) => {
+    const user = await currentUser(pool, c);
+    if (!user) return c.json(UNAUTHENTICATED, 401);
+    const origin = badOrigin(c);
+    if (origin) return origin;
+    const key = c.req.header("idempotency-key")?.trim() ?? "";
+    if (!key) return c.json(INVALID_BODY, 400);
+    const body = await readJson(c);
+    if (body instanceof Response) return body;
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length > 0) {
+      return c.json(INVALID_BODY, 400);
+    }
+    const cardId = c.req.param("id");
+    const requestHash = hashBody({ cardId });
+    const result = await withTx(pool, async (client) => {
+      if (!(await lockBoard(client))) return { kind: "missing" as const };
+      const prior = await savedIdempotency(client, key, user.id, requestHash);
+      if (prior && "conflict" in prior) return { kind: "conflict" as const };
+      if (prior && "replay" in prior) return { kind: "replay" as const, body: prior.replay.response_json };
+      const card = await readCard(client, cardId);
+      if (!card) return { kind: "missing" as const };
+      const inserted = await client.query(
+        `INSERT INTO card_stars (card_id, user_id, created_at)
+         VALUES ($1, $2, now())
+         ON CONFLICT (card_id, user_id) DO NOTHING
+         RETURNING card_id`,
+        [cardId, user.id],
+      );
+      const envelope = { starred: true };
+      await remember(client, key, user.id, requestHash, envelope);
+      return { kind: (inserted.rowCount ?? 0) > 0 ? ("created" as const) : ("kept" as const), body: envelope };
+    });
+    if (result.kind === "missing") return c.json(NOT_FOUND, 404);
+    if (result.kind === "conflict") {
+      return c.json({ error: { code: "conflict", message: "This idempotency key was already used." } }, 409);
+    }
+    if (result.kind === "created") c.set("keelBusiness", "keel.card.starred");
+    if (result.kind === "replay") c.header("x-keel-idempotent", "replay");
+    return c.json(result.body, 201);
+  });
+
   return app;
 }

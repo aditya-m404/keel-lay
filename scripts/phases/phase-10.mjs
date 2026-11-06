@@ -56,8 +56,16 @@ async function resetBoard(env) {
   }
 }
 
+const localProdEnv = {
+  KEEL_ENV: "local-prod",
+  KEEL_WEB_ORIGIN: "http://127.0.0.1:4200",
+  KEEL_API_ORIGIN: "http://127.0.0.1:4201",
+  KEEL_STUDIO_ORIGIN: "http://127.0.0.1:4202",
+  DATABASE_URL: "postgres://keel:keel@127.0.0.1:42532/keel",
+};
+
 async function bundleHash() {
-  const response = await fetch("http://127.0.0.1:4100/", { headers: { accept: "text/html" } });
+  const response = await fetch("http://127.0.0.1:4200/", { headers: { accept: "text/html" } });
   const html = await response.text();
   const match = html.match(/\/assets\/[^"]+/);
   if (!match) miss(`served page has no hashed bundle\n${html.slice(0, 400)}`);
@@ -69,21 +77,24 @@ loadEnv(userEnv);
 
 let code = 0;
 let rebuilt = false;
+let prodUp = false;
 try {
   run("./scripts/up", ["prodlike"], userEnv);
+  prodUp = true;
   const started = Date.now();
   run("./scripts/up", ["prodlike"], userEnv, 40000);
   const warm = Date.now() - started;
   if (warm > 30000) miss(`warm start took ${warm}ms`);
   console.log(`warm ${warm}ms`);
-  const ready = await fetch(`${userEnv.KEEL_API_ORIGIN}/ready`);
+  const against = { ...userEnv, ...localProdEnv };
+  const ready = await fetch(`${against.KEEL_API_ORIGIN}/ready`);
   if (!ready.ok) miss(`ready ${ready.status}`);
 
-  run(process.execPath, ["scripts/phases/phase-02.mjs"], userEnv);
-  run(process.execPath, ["scripts/phases/phase-03.mjs"], userEnv);
+  run(process.execPath, ["scripts/phases/phase-02.mjs"], against);
+  run(process.execPath, ["scripts/phases/phase-03.mjs"], against);
   const playwright = spawnSync("pnpm", ["exec", "playwright", "test"], {
     cwd: path.join(root, "apps/web"),
-    env: userEnv,
+    env: against,
     encoding: "utf8",
     timeout: 120000,
   });
@@ -100,13 +111,13 @@ try {
   if (after === before) miss(`rebuild left the bundle hash at ${before}`);
 
   const runId = `run_phase10_${randomUUID()}`;
-  const signed = await fetch(`${userEnv.KEEL_API_ORIGIN}/session`, {
+  const signed = await fetch(`${against.KEEL_API_ORIGIN}/session`, {
     method: "POST",
     headers: { accept: "application/json", "content-type": "application/json" },
     body: JSON.stringify({ email: "grace@keel.test", password: "keel-local-only" }),
   });
   const cookie = signed.headers.getSetCookie?.().map((header) => header.split(";")[0]).join("; ");
-  const created = await fetch(`${userEnv.KEEL_API_ORIGIN}/cards`, {
+  const created = await fetch(`${against.KEEL_API_ORIGIN}/cards`, {
     method: "POST",
     headers: {
       accept: "application/json",
@@ -140,13 +151,21 @@ try {
     console.error(error instanceof Error ? error.message : error);
     code = 1;
   }
+  if (prodUp) {
+    try {
+      await resetBoard({ ...userEnv, ...localProdEnv });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      code = 1;
+    }
+  }
   try {
     await resetBoard(userEnv);
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     code = 1;
   }
-  const local = spawnSync("./scripts/up", { cwd: root, env: userEnv, encoding: "utf8", timeout: 120000 });
+  const local = spawnSync("./scripts/up", ["local"], { cwd: root, env: userEnv, encoding: "utf8", timeout: 120000 });
   if (local.status !== 0) {
     console.error(local.stderr || local.stdout || "local up failed");
     code = 1;

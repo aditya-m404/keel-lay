@@ -31,12 +31,16 @@ function runId(): string {
 }
 
 function notExported(id: string): void {
-  const result = spawnSync(
-    "docker",
-    ["compose", "-f", "infra/compose.yaml", "logs", "--since", "5m", "--no-color", "collector"],
-    { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
-  );
-  const log = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  const chunks: string[] = [];
+  for (const file of ["infra/compose.local.yaml", "infra/compose.local-prod.yaml"]) {
+    const result = spawnSync(
+      "docker",
+      ["compose", "-f", file, "logs", "--since", "5m", "--no-color", "collector"],
+      { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    );
+    chunks.push(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
+  }
+  const log = chunks.join("\n");
   let from = 0;
   while (from < log.length) {
     const at = log.indexOf(id, from);
@@ -56,10 +60,6 @@ function notExported(id: string): void {
 
 function orgFrom(endpoint: string, site: string | undefined): { origin: string; org: string } {
   const url = new URL(endpoint);
-  if (url.hostname === "openobserve") {
-    url.hostname = "127.0.0.1";
-    url.port = "15081";
-  }
   const parts = url.pathname.split("/").filter(Boolean);
   const api = parts.indexOf("api");
   const org = (api >= 0 ? parts[api + 1] : "") || site?.trim() || "";
@@ -117,12 +117,22 @@ function hitsHaveRun(text: string, id: string): boolean {
   }
 }
 
-async function containsRun(origin: string, org: string, key: string, type: string, id: string): Promise<boolean> {
+async function containsRun(
+  origin: string,
+  org: string,
+  key: string,
+  type: string,
+  id: string,
+  signal: "app" | "infra",
+  strict: boolean,
+): Promise<boolean> {
   const names = await streamNames(origin, org, key, type);
   const streams = names.length > 0 ? names : ["default"];
   for (const name of streams) {
     const quoted = quoteStream(name);
-    for (const query of [`SELECT * FROM ${quoted} WHERE keel_run_id = '${id}'`, `SELECT * FROM ${quoted}`]) {
+    const queries = [`SELECT * FROM ${quoted} WHERE keel_run_id = '${id}' AND keel_signal = '${signal}'`];
+    if (!strict) queries.push(`SELECT * FROM ${quoted} WHERE keel_run_id = '${id}'`, `SELECT * FROM ${quoted}`);
+    for (const query of queries) {
       try {
         const text = await search(origin, org, key, type, query);
         if (hitsHaveRun(text, id)) return true;
@@ -146,19 +156,27 @@ loadEnvFile();
 const id = runId();
 const vendor = (process.env.KEEL_COLLECTOR_VENDOR || "debug").trim();
 const appKey = process.env.KEEL_VENDOR_APP_API_KEY?.trim() ?? "";
-const infraKey = process.env.KEEL_VENDOR_INFRA_API_KEY?.trim() ?? "";
 const appEndpoint = process.env.KEEL_VENDOR_APP_ENDPOINT?.trim() ?? "";
-const infraEndpoint = process.env.KEEL_VENDOR_INFRA_ENDPOINT?.trim() ?? "";
+const appSite = process.env.KEEL_VENDOR_APP_SITE;
+let infraKey = process.env.KEEL_VENDOR_INFRA_API_KEY?.trim() ?? "";
+let infraEndpoint = process.env.KEEL_VENDOR_INFRA_ENDPOINT?.trim() ?? "";
+let infraSite = process.env.KEEL_VENDOR_INFRA_SITE;
+if (!infraKey || !infraEndpoint) {
+  infraKey = appKey;
+  infraEndpoint = appEndpoint;
+  infraSite = infraSite || appSite;
+}
 
 if (vendor !== "openobserve" || !appKey || !infraKey || !appEndpoint || !infraEndpoint) notExported(id);
 
-const app = orgFrom(appEndpoint, process.env.KEEL_VENDOR_APP_SITE);
-const infra = orgFrom(infraEndpoint, process.env.KEEL_VENDOR_INFRA_SITE);
+const app = orgFrom(appEndpoint, appSite);
+const infra = orgFrom(infraEndpoint, infraSite);
+const sameAccount = app.origin === infra.origin && app.org === infra.org;
 
 const [appLog, appSpan, infraLog, duration] = await Promise.all([
-  containsRun(app.origin, app.org, appKey, "logs", id),
-  containsRun(app.origin, app.org, appKey, "traces", id),
-  containsRun(infra.origin, infra.org, infraKey, "logs", id),
+  containsRun(app.origin, app.org, appKey, "logs", id, "app", false),
+  containsRun(app.origin, app.org, appKey, "traces", id, "app", false),
+  containsRun(infra.origin, infra.org, infraKey, "logs", id, "infra", sameAccount),
   durationQueryable(app.origin, app.org, appKey),
 ]);
 
