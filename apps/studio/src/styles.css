@@ -127,6 +127,18 @@ legend {
 
 .custom-row button { width: auto; margin-top: 2px; padding: 6px 10px; }
 
+.pick { display: flex; flex-direction: column; gap: 6px; }
+
+.custom-row .pick { flex: 1; }
+
+.setting { display: flex; align-items: center; gap: 8px; padding-left: 28px; }
+
+.setting select { width: auto; flex: none; }
+
+.setting input { width: 120px; flex: none; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 label, .name {
   font-size: 13px;
   font-weight: 700;

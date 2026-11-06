@@ -6,7 +6,7 @@ paths:
 
 # Studio
 
-`POST /runs` takes `target`, `mode` (`computer` or `person`), `journey`, `pace`, `seed`, and `confirm`. `confirm` is `""` except for target `production`, which requires `confirm` to be `production`. Person mode forces one actor. Production forces one actor and at most 10 minutes. A metrics send may include catalog names or a custom name made of letters, digits, dots, and underscores.
+`POST /runs` takes `target`, `mode` (`computer` or `person`), `journey`, `pace`, `seed`, and `confirm`. `confirm` is `""` except for target `production`, which requires `confirm` to be `production`. Person mode forces one actor. Production forces one actor and at most 10 minutes. A metrics send may include catalog names or a custom name made of letters, digits, dots, and underscores. Each entry is a name, or a name with a `kind` (`counter`, a cumulative sum that grows by `value` each send; `gauge`, the value as read) and a `value`; a bare name is a counter growing by one. `metricCount` goes up to 10000 and `intervalMs` up to an hour, so one send can run for hours.
 
 The default mode is `computer`. Person mode is one Playwright context. It clicks the journey's `ui` steps and posts the browser span to `POST /otel`. Same-origin path changes use `history.pushState`.
 

@@ -10,7 +10,7 @@ import { z } from "zod";
 import { loadEnv } from "../../api/src/db/env.ts";
 import { METRIC_NAME } from "./names.ts";
 import { catalogMetrics, journeyIds, journeySummary } from "./plan.ts";
-import { createRun, getRun, pauseRun, publicRun, stopRun, type AccountName, type People } from "./runs.ts";
+import { createRun, getRun, pauseRun, publicRun, stopRun, type AccountName, type MetricSend, type People } from "./runs.ts";
 
 const INVALID = { error: { code: "invalid_body", message: "The request is invalid." } };
 const NOT_FOUND = { error: { code: "not_found", message: "Not found." } };
@@ -27,9 +27,24 @@ const startBody = z
     headed: z.boolean().optional(),
     people: z.enum(["seeded", "fresh", "metrics"]).optional(),
     accounts: z.array(z.enum(["application", "infrastructure"])).min(1).max(2).optional(),
-    metricCount: z.number().int().min(1).max(100).optional(),
-    intervalMs: z.number().int().min(200).max(120000).optional(),
-    metrics: z.array(z.string().trim().regex(METRIC_NAME)).min(1).max(20).optional(),
+    metricCount: z.number().int().min(1).max(10000).optional(),
+    intervalMs: z.number().int().min(200).max(3600000).optional(),
+    metrics: z
+      .array(
+        z.union([
+          z.string().trim().regex(METRIC_NAME),
+          z
+            .object({
+              name: z.string().trim().regex(METRIC_NAME),
+              kind: z.enum(["counter", "gauge"]).optional(),
+              value: z.number().finite().optional(),
+            })
+            .strict(),
+        ]),
+      )
+      .min(1)
+      .max(20)
+      .optional(),
   })
   .strict();
 
@@ -142,7 +157,10 @@ export function createStudioApp(): Hono {
     }
     const people: People = body.people ?? "seeded";
     const accounts: AccountName[] = body.accounts ?? ["application"];
-    const metrics = body.metrics ?? [];
+    // A bare name is the old shape: a counter that grows by one each send.
+    const metrics: MetricSend[] = (body.metrics ?? []).map((item) =>
+      typeof item === "string" ? { name: item, kind: "counter", value: 1 } : { name: item.name, kind: item.kind ?? "counter", value: item.value ?? 1 },
+    );
     if (body.mode === "person" && people !== "seeded") {
       return c.json({ error: { code: "invalid_body", message: "A browser run uses the seeded people. Pick Computer for a new account or for metrics only." } }, 400);
     }

@@ -16,6 +16,9 @@ export type People = "seeded" | "fresh" | "metrics";
 
 export type AccountName = "application" | "infrastructure";
 
+/** One number a metrics send carries: a counter grows by `value` each send, a gauge reads `value`. */
+export type MetricSend = { name: string; kind: "counter" | "gauge"; value: number };
+
 export type Run = {
   id: string;
   target: string;
@@ -27,7 +30,7 @@ export type Run = {
   accounts: AccountName[];
   metricCount: number;
   intervalMs: number;
-  metrics: string[];
+  metrics: MetricSend[];
   scale: number;
   actors: number;
   minutes: number;
@@ -42,6 +45,8 @@ export type Run = {
   events: RunEvent[];
   errorCount: number;
   cookies: Map<string, string>;
+  /** Start of the run in unix nanoseconds, the start time of every cumulative sum it sends. */
+  startedNanos: string;
 };
 
 const runs = new Map<string, Run>();
@@ -84,7 +89,7 @@ export function createRun(input: {
   accounts: AccountName[];
   metricCount: number;
   intervalMs: number;
-  metrics: string[];
+  metrics: MetricSend[];
   api: string;
   web: string;
   mode: "computer" | "person";
@@ -120,6 +125,7 @@ export function createRun(input: {
     events: [],
     errorCount: 0,
     cookies: new Map(),
+    startedNanos: String(BigInt(Date.now()) * 1_000_000n),
   };
   if (input.people === "fresh") run.steps = withFreshAccount(run.id, run.steps);
   runs.set(run.id, run);
@@ -275,16 +281,24 @@ function attribute(key: string, value: string): { key: string; value: { stringVa
   return { key, value: { stringValue: value } };
 }
 
-async function emitMetrics(run: Run, names: string[], count: number): Promise<number> {
-  const now = Date.now() * 1_000_000;
-  const metrics = names.map((name) => ({
-    name,
-    sum: {
-      aggregationTemporality: 2,
-      isMonotonic: true,
-      dataPoints: [{ asInt: String(count), startTimeUnixNano: String(now), timeUnixNano: String(now) }],
-    },
-  }));
+function point(value: number): { asInt: string } | { asDouble: number } {
+  return Number.isInteger(value) ? { asInt: String(value) } : { asDouble: value };
+}
+
+async function emitMetrics(run: Run, sends: MetricSend[], count: number): Promise<number> {
+  const now = String(BigInt(Date.now()) * 1_000_000n);
+  const metrics = sends.map((send) =>
+    send.kind === "gauge"
+      ? { name: send.name, gauge: { dataPoints: [{ ...point(send.value), timeUnixNano: now }] } }
+      : {
+          name: send.name,
+          sum: {
+            aggregationTemporality: 2,
+            isMonotonic: send.value >= 0,
+            dataPoints: [{ ...point(send.value * count), startTimeUnixNano: run.startedNanos, timeUnixNano: now }],
+          },
+        },
+  );
   const posts = run.accounts.map((account) => {
     const signal = account === "infrastructure" ? "infra" : "app";
     const attributes = [
@@ -315,11 +329,13 @@ async function emitMetrics(run: Run, names: string[], count: number): Promise<nu
 
 async function playMetrics(run: Run): Promise<void> {
   const summary = journeySummary(run.journey);
-  const names = run.metrics.length ? run.metrics : summary?.metrics.length ? summary.metrics : ["http.server.requests"];
+  const fallback = summary?.metrics.length ? summary.metrics : ["http.server.requests"];
+  const sends: MetricSend[] = run.metrics.length ? run.metrics : fallback.map((name) => ({ name, kind: "counter", value: 1 }));
+  const names = sends.map((send) => send.name);
   for (let count = 1; count <= run.metricCount; count += 1) {
     const ready = await waitTurn(run, run.intervalMs);
     if (!ready) break;
-    const status = await emitMetrics(run, names, count);
+    const status = await emitMetrics(run, sends, count);
     if (status !== 200) run.errorCount += 1;
     run.events.push({
       at: new Date().toISOString(),

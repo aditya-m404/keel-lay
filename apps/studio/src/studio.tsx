@@ -2,7 +2,12 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { METRIC_NAME } from "./names.ts";
 import { runStore, type AccountCatalog, type AccountSlot, type RunEvent } from "./store.ts";
 
-type Metric = { name: string; description: string };
+type Kind = "counter" | "gauge";
+
+type Metric = { name: string; kind: Kind; description: string };
+
+/** What one picked number sends: a counter grows by the value each send, a gauge reads the value. */
+type Setting = { kind: Kind; value: number };
 
 type Destination = "application" | "infrastructure" | "both";
 
@@ -13,6 +18,9 @@ const titles: Record<string, string> = {
   "keel.card.starred": "Stars",
   "http.server.requests": "Requests",
   "http.server.request.duration": "Request time",
+  "keel.guard.error_ratio": "Error ratio",
+  "keel.guard.p95_ms": "p95 latency",
+  "keel.guard.requests_per_min": "Requests per minute",
 };
 
 const plain: Record<string, string> = {
@@ -22,11 +30,27 @@ const plain: Record<string, string> = {
   "keel.card.starred": "A card was starred.",
   "http.server.requests": "The API answered a call.",
   "http.server.request.duration": "How long a call took.",
+  "keel.guard.error_ratio": "Share of calls that failed in the last minute. 0.02 is two percent.",
+  "keel.guard.p95_ms": "95th percentile call time in the last minute, in milliseconds.",
+  "keel.guard.requests_per_min": "Calls per minute.",
 };
+
+/** The value a number starts with when it is picked. A gauge sends it as is; a counter grows by it. */
+const defaults: Record<string, Setting> = {
+  "keel.guard.error_ratio": { kind: "gauge", value: 0.005 },
+  "keel.guard.p95_ms": { kind: "gauge", value: 220 },
+  "keel.guard.requests_per_min": { kind: "gauge", value: 300 },
+  "http.server.request.duration": { kind: "gauge", value: 120 },
+};
+
+function settingFor(metric: Metric | undefined): Setting {
+  if (!metric) return { kind: "counter", value: 1 };
+  return defaults[metric.name] ?? (metric.kind === "counter" ? { kind: "counter", value: 1 } : { kind: "gauge", value: 1 });
+}
 
 const order = Object.keys(titles);
 
-const fallback: Metric[] = order.map((name) => ({ name, description: "" }));
+const fallback: Metric[] = order.map((name) => ({ name, kind: defaults[name]?.kind ?? "counter", description: "" }));
 
 function titleFor(name: string): string {
   return titles[name] ?? name;
@@ -46,9 +70,10 @@ function asMetrics(value: unknown): Metric[] {
   if (!Array.isArray(list)) return [];
   return sortMetrics(list.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
-    const record = item as { name?: unknown; description?: unknown };
+    const record = item as { name?: unknown; kind?: unknown; description?: unknown };
     if (typeof record.name !== "string" || !record.name) return [];
-    return [{ name: record.name, description: typeof record.description === "string" ? record.description : "" }];
+    const kind: Kind = record.kind === "gauge" || record.kind === "histogram" ? "gauge" : "counter";
+    return [{ name: record.name, kind, description: typeof record.description === "string" ? record.description : "" }];
   }));
 }
 
@@ -63,6 +88,7 @@ export function Studio() {
   const snapshot = useSyncExternalStore(runStore.subscribe, runStore.getSnapshot, runStore.getSnapshot);
   const [metrics, setMetrics] = useState<Metric[]>(fallback);
   const [picked, setPicked] = useState<string[]>(["keel.card.created"]);
+  const [settings, setSettings] = useState<Record<string, Setting>>({});
   const [extra, setExtra] = useState<Metric[]>([]);
   const [custom, setCustom] = useState("");
   const [where, setWhere] = useState<Destination>("application");
@@ -89,11 +115,25 @@ export function Studio() {
   const accounts = where === "both" ? (["application", "infrastructure"] as const) : ([where] as const);
   const shown = [...metrics, ...extra.filter((item) => !metrics.some((known) => known.name === item.name))];
   const chosen = shown.filter((item) => picked.includes(item.name));
-  const names = chosen.map((item) => titleFor(item.name));
+  const settingOf = (item: Metric): Setting => settings[item.name] ?? settingFor(item);
+  const names = chosen.map((item) => {
+    const setting = settingOf(item);
+    return `${titleFor(item.name)} (${setting.kind === "gauge" ? `reads ${setting.value}` : `+${setting.value} each send`})`;
+  });
   const destination = where === "both" ? "both accounts" : where === "infrastructure" ? "the infrastructure account" : "the application account";
+  const length = times * every;
+  const lasts = length < 120 ? `${length} seconds` : length < 7200 ? `about ${Math.round(length / 60)} minutes` : `about ${Math.round(length / 360) / 10} hours`;
   const summary = names.length
-    ? `Sending ${names.join(", ")} to ${destination}, ${times} ${times === 1 ? "time" : "times"}, every ${every} ${every === 1 ? "second" : "seconds"}.`
+    ? `Sending ${names.join(", ")} to ${destination}, ${times} ${times === 1 ? "time" : "times"}, every ${every} ${every === 1 ? "second" : "seconds"}: ${lasts}.`
     : "Pick at least one number.";
+
+  function setSetting(name: string, next: Partial<Setting>): void {
+    runStore.setError("");
+    setSettings((current) => {
+      const metric = shown.find((item) => item.name === name);
+      return { ...current, [name]: { ...(current[name] ?? settingFor(metric)), ...next } };
+    });
+  }
 
   function toggle(name: string, on: boolean): void {
     runStore.setError("");
@@ -113,7 +153,7 @@ export function Studio() {
     runStore.setError("");
     setCustom("");
     if (!metrics.some((item) => item.name === name)) {
-      setExtra((current) => (current.some((item) => item.name === name) ? current : [...current, { name, description: "A name you added." }]));
+      setExtra((current) => (current.some((item) => item.name === name) ? current : [...current, { name, kind: "counter", description: "A name you added." }]));
     }
     setPicked((current) => (current.includes(name) ? current : [...current, name]));
   }
@@ -141,7 +181,7 @@ export function Studio() {
         confirm: "",
         people: "metrics",
         accounts,
-        metrics: picked,
+        metrics: chosen.map((item) => ({ name: item.name, ...settingOf(item) })),
         metricCount: times,
         intervalMs: every * 1000,
       }),
@@ -191,20 +231,44 @@ export function Studio() {
           <legend>Numbers</legend>
           {shown.map((item) => {
             const added = extra.some((customMetric) => customMetric.name === item.name);
+            const on = picked.includes(item.name);
+            const setting = settingOf(item);
             const row = (
-              <label className="choice">
-                <input
-                  type="checkbox"
-                  name="metric"
-                  value={item.name}
-                  checked={picked.includes(item.name)}
-                  onChange={(event) => toggle(item.name, event.target.checked)}
-                />
-                <span>
-                  <strong>{titleFor(item.name)}</strong>
-                  <small>{plain[item.name] ?? item.description}</small>
-                </span>
-              </label>
+              <div className="pick">
+                <label className="choice">
+                  <input
+                    type="checkbox"
+                    name="metric"
+                    value={item.name}
+                    checked={on}
+                    onChange={(event) => toggle(item.name, event.target.checked)}
+                  />
+                  <span>
+                    <strong>{titleFor(item.name)}</strong>
+                    <small>{plain[item.name] ?? item.description}</small>
+                  </span>
+                </label>
+                {on ? (
+                  <span className="setting">
+                    <label className="visually-hidden" htmlFor={`kind-${item.name}`}>Kind of {titleFor(item.name)}</label>
+                    <select id={`kind-${item.name}`} value={setting.kind} onChange={(event) => setSetting(item.name, { kind: event.target.value as Kind })}>
+                      <option value="gauge">reads</option>
+                      <option value="counter">grows by</option>
+                    </select>
+                    <label className="visually-hidden" htmlFor={`value-${item.name}`}>Value of {titleFor(item.name)}</label>
+                    <input
+                      id={`value-${item.name}`}
+                      type="number"
+                      step="any"
+                      value={setting.value}
+                      onChange={(event) => {
+                        const next = Number(event.target.value);
+                        if (Number.isFinite(next)) setSetting(item.name, { value: next });
+                      }}
+                    />
+                  </span>
+                ) : null}
+              </div>
             );
             return added ? (
               <div className="custom-row" key={item.name}>
@@ -264,9 +328,9 @@ export function Studio() {
           <div className="pair">
             <label htmlFor="times">Times</label>
             <label htmlFor="every">Every</label>
-            <input id="times" type="number" min={1} max={100} value={times} onChange={(event) => setTimes(Math.min(100, Math.max(1, Number(event.target.value) || 1)))} />
+            <input id="times" type="number" min={1} max={10000} value={times} onChange={(event) => setTimes(Math.min(10000, Math.max(1, Number(event.target.value) || 1)))} />
             <span className="with-unit">
-              <input id="every" type="number" min={1} max={60} value={every} onChange={(event) => setEvery(Math.min(60, Math.max(1, Number(event.target.value) || 1)))} />
+              <input id="every" type="number" min={1} max={3600} value={every} onChange={(event) => setEvery(Math.min(3600, Math.max(1, Number(event.target.value) || 1)))} />
               <span>seconds</span>
             </span>
           </div>

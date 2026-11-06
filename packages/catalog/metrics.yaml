@@ -24,3 +24,16 @@ metrics:
     kind: counter
     signal: app
     description: First time a person stars a card.
+  - name: keel.guard.error_ratio
+    kind: gauge
+    signal: app
+    description: Share of API calls that failed with a 5xx over the last minute. Sent by Studio in a rehearsal.
+  - name: keel.guard.p95_ms
+    kind: gauge
+    unit: ms
+    signal: app
+    description: 95th percentile handler time over the last minute. Sent by Studio in a rehearsal.
+  - name: keel.guard.requests_per_min
+    kind: gauge
+    signal: app
+    description: API calls per minute. Sent by Studio in a rehearsal.
