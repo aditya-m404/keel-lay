@@ -11,10 +11,7 @@ test("starting a run keeps the document and shows the scale", async ({ page }) =
   });
   await page.goto("/");
   expect(await navigationCount(page)).toBe(1);
-  await page.getByLabel("Seed").fill("phase7-seed");
-  await page.getByLabel("Journey").selectOption("create-card");
-  await page.getByLabel("Pace").selectOption("demo");
-  await page.getByLabel("Target").selectOption("local");
+  await page.getByRole("checkbox", { name: /Cards created/ }).check();
   await page.getByRole("button", { name: "Start" }).click();
   const run = page.locator("[data-run]");
   const scale = page.locator("[data-scale]");
@@ -24,7 +21,7 @@ test("starting a run keeps the document and shows the scale", async ({ page }) =
   expect(await scale.getAttribute("title")).toBeNull();
   expect(await navigationCount(page)).toBe(1);
   const loaded = targets.length;
-  await expect(page.locator(".strip")).toContainText(/sign-in|open-board|add-card/);
+  await expect(page.locator(".strip")).toContainText("keel.card.created");
   expect(loaded).toBeGreaterThan(0);
   expect(targets).toHaveLength(loaded);
 });

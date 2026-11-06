@@ -27,6 +27,7 @@ export type Run = {
   accounts: AccountName[];
   metricCount: number;
   intervalMs: number;
+  metrics: string[];
   scale: number;
   actors: number;
   minutes: number;
@@ -61,6 +62,7 @@ export function publicRun(run: Run) {
     accounts: run.accounts,
     metricCount: run.metricCount,
     intervalMs: run.intervalMs,
+    metrics: run.metrics,
     scale: run.scale,
     actors: run.actors,
     minutes: run.minutes,
@@ -82,6 +84,7 @@ export function createRun(input: {
   accounts: AccountName[];
   metricCount: number;
   intervalMs: number;
+  metrics: string[];
   api: string;
   web: string;
   mode: "computer" | "person";
@@ -102,6 +105,7 @@ export function createRun(input: {
     accounts: input.accounts,
     metricCount: input.metricCount,
     intervalMs: input.intervalMs,
+    metrics: input.metrics,
     scale: profile.scale,
     actors: input.mode === "person" ? 1 : profile.actors,
     minutes: profile.minutes,
@@ -311,7 +315,7 @@ async function emitMetrics(run: Run, names: string[], count: number): Promise<nu
 
 async function playMetrics(run: Run): Promise<void> {
   const summary = journeySummary(run.journey);
-  const names = summary?.metrics.length ? summary.metrics : ["http.server.requests"];
+  const names = run.metrics.length ? run.metrics : summary?.metrics.length ? summary.metrics : ["http.server.requests"];
   for (let count = 1; count <= run.metricCount; count += 1) {
     const ready = await waitTurn(run, run.intervalMs);
     if (!ready) break;

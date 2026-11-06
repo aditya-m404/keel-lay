@@ -129,6 +129,21 @@ export function journeySummary(id: string): JourneySummary | null {
   };
 }
 
+export type CatalogMetric = {
+  name: string;
+  kind: string;
+  description: string;
+};
+
+export function catalogMetrics(): CatalogMetric[] {
+  const file = path.join(repoRoot(), "packages/catalog/metrics.yaml");
+  const raw = parse(readFileSync(file, "utf8")) as { metrics?: { name?: string; kind?: string; description?: string }[] };
+  return (raw.metrics ?? []).flatMap((item) => {
+    if (!item?.name) return [];
+    return [{ name: item.name, kind: item.kind || "counter", description: item.description || "" }];
+  });
+}
+
 export function journeyIds(): string[] {
   const dir = path.join(repoRoot(), "packages/journeys");
   return readdirSync(dir)

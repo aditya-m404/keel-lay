@@ -8,7 +8,8 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { loadEnv } from "../../api/src/db/env.ts";
-import { journeyIds, journeySummary } from "./plan.ts";
+import { METRIC_NAME } from "./names.ts";
+import { catalogMetrics, journeyIds, journeySummary } from "./plan.ts";
 import { createRun, getRun, pauseRun, publicRun, stopRun, type AccountName, type People } from "./runs.ts";
 
 const INVALID = { error: { code: "invalid_body", message: "The request is invalid." } };
@@ -28,6 +29,7 @@ const startBody = z
     accounts: z.array(z.enum(["application", "infrastructure"])).min(1).max(2).optional(),
     metricCount: z.number().int().min(1).max(100).optional(),
     intervalMs: z.number().int().min(200).max(120000).optional(),
+    metrics: z.array(z.string().trim().regex(METRIC_NAME)).min(1).max(20).optional(),
   })
   .strict();
 
@@ -86,6 +88,8 @@ export function createStudioApp(): Hono {
     }),
   );
 
+  app.get("/metrics", (c) => c.json({ metrics: catalogMetrics() }));
+
   app.get("/accounts", (c) => {
     const vendor = (process.env.KEEL_COLLECTOR_VENDOR || "debug").trim();
     const application = accountSlot(
@@ -126,6 +130,7 @@ export function createStudioApp(): Hono {
     }
     const people: People = body.people ?? "seeded";
     const accounts: AccountName[] = body.accounts ?? ["application"];
+    const metrics = body.metrics ?? [];
     if (body.mode === "person" && people !== "seeded") {
       return c.json({ error: { code: "invalid_body", message: "A browser run uses the seeded people. Pick Computer for a new account or for metrics only." } }, 400);
     }
@@ -138,6 +143,7 @@ export function createStudioApp(): Hono {
       accounts,
       metricCount: body.metricCount ?? 1,
       intervalMs: body.intervalMs ?? 1000,
+      metrics,
       api,
       web: target.web,
       mode: body.mode,
@@ -260,7 +266,7 @@ async function listen(): Promise<void> {
       })();
   const server = createServer((req, res) => {
     const pathname = (req.url ?? "/").split("?")[0] ?? "/";
-    if (pathname === "/targets" || pathname === "/journeys" || pathname === "/accounts" || pathname.startsWith("/runs")) {
+    if (pathname === "/targets" || pathname === "/journeys" || pathname === "/accounts" || pathname === "/metrics" || pathname.startsWith("/runs")) {
       api(req, res);
       return;
     }

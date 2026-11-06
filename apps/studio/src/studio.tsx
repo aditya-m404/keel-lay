@@ -1,232 +1,154 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { runStore, type AccountCatalog, type AccountSlot, type JourneyChoice, type RunEvent, type Target } from "./store.ts";
+import { METRIC_NAME } from "./names.ts";
+import { runStore, type AccountCatalog, type AccountSlot, type RunEvent } from "./store.ts";
 
-const paces = ["demo", "office", "real-time", "machine"] as const;
+type Metric = { name: string; description: string };
 
-const modes = ["computer", "person"] as const;
+type Destination = "application" | "infrastructure" | "both";
 
-type People = "seeded" | "fresh" | "metrics";
-
-type StartBody = {
-  target: string;
-  mode: (typeof modes)[number];
-  journey: string;
-  pace: (typeof paces)[number];
-  seed: string;
-  confirm: string;
-  people: People;
-  accounts: ("application" | "infrastructure")[];
-  metricCount: number;
-  intervalMs: number;
+const titles: Record<string, string> = {
+  "keel.card.created": "Cards created",
+  "keel.card.moved": "Cards moved",
+  "keel.comment.created": "Comments",
+  "keel.card.starred": "Stars",
+  "http.server.requests": "Requests",
+  "http.server.request.duration": "Request time",
 };
 
-const cast: Record<string, string> = {
-  ada: "Ada, the owner",
-  grace: "Grace, a member",
-  linus: "Linus, a viewer",
+const plain: Record<string, string> = {
+  "keel.card.created": "A card was added.",
+  "keel.card.moved": "A card changed column.",
+  "keel.comment.created": "A comment was saved.",
+  "keel.card.starred": "A card was starred.",
+  "http.server.requests": "The API answered a call.",
+  "http.server.request.duration": "How long a call took.",
 };
 
-const modeCopy: Record<(typeof modes)[number], { label: string; hint: string }> = {
-  computer: {
-    label: "Computer — calls the API",
-    hint: "Studio signs in and sends the requests. Office pace can use three people.",
-  },
-  person: {
-    label: "Person — a browser clicks",
-    hint: "A hidden browser signs in and clicks the board as one person. Open the board to watch the result.",
-  },
-};
+const order = Object.keys(titles);
 
-const paceCopy: Record<(typeof paces)[number], { label: string; hint: string }> = {
-  demo: {
-    label: "Demo — slow, one person, about 3 minutes",
-    hint: "Pauses last about ten times longer, so the journey is easy to watch.",
-  },
-  office: {
-    label: "Office — slow, three people, about 15 minutes",
-    hint: "A workday shape. Person mode still uses one browser.",
-  },
-  "real-time": {
-    label: "Real time — three people, about 30 minutes",
-    hint: "Pauses run at the recorded speed.",
-  },
-  machine: {
-    label: "Machine — real time, one person, about 10 minutes",
-    hint: "The shortest pass at the recorded speed.",
-  },
-};
+const fallback: Metric[] = order.map((name) => ({ name, description: "" }));
 
-function targetLabel(name: string): string {
-  if (name === "local") return "This machine (local)";
-  if (name === "local-prod") return "Packaged copy (local-prod)";
-  if (name === "production") return "Live server (production)";
-  return name;
+function titleFor(name: string): string {
+  return titles[name] ?? name;
 }
 
-function targetHint(item: Target | undefined): string {
-  if (!item) return "Choose which copy of the board this rehearsal writes to.";
-  if (item.name === "local") return `The board on this machine, ${item.web}.`;
-  if (item.name === "local-prod") return `The packaged board, ${item.web}. This is the copy that behaves like a deploy.`;
-  if (item.name === "production") return `The live board, ${item.web}. Type production below or Studio refuses the run.`;
-  return item.web;
-}
-
-function asJourneys(value: unknown): JourneyChoice[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const record = item as Partial<JourneyChoice>;
-    const id = typeof record.id === "string" ? record.id : "";
-    if (!id) return [];
-    return [{
-      id,
-      title: typeof record.title === "string" && record.title ? record.title : id,
-      actor: typeof record.actor === "string" ? record.actor : "",
-      metrics: Array.isArray(record.metrics) ? record.metrics.filter((name): name is string => typeof name === "string") : [],
-      steps: Array.isArray(record.steps) ? record.steps : [],
-    }];
+function sortMetrics(items: Metric[]): Metric[] {
+  return [...items].sort((left, right) => {
+    const a = order.indexOf(left.name);
+    const b = order.indexOf(right.name);
+    return (a === -1 ? order.length : a) - (b === -1 ? order.length : b);
   });
 }
 
-function metricFor(method: string, stepPath: string): string | null {
-  if (method === "POST" && stepPath === "/cards") return "keel.card.created";
-  if (method === "POST" && stepPath.endsWith("/comments")) return "keel.comment.created";
-  if (method === "POST" && stepPath.endsWith("/stars")) return "keel.card.starred";
-  if (method === "PATCH" && stepPath.startsWith("/cards/")) return "keel.card.moved";
-  return null;
+function asMetrics(value: unknown): Metric[] {
+  if (!value || typeof value !== "object") return [];
+  const list = (value as { metrics?: unknown }).metrics;
+  if (!Array.isArray(list)) return [];
+  return sortMetrics(list.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as { name?: unknown; description?: unknown };
+    if (typeof record.name !== "string" || !record.name) return [];
+    return [{ name: record.name, description: typeof record.description === "string" ? record.description : "" }];
+  }));
 }
 
-function formatGap(ms: number): string {
-  if (ms < 1000) return `every ${ms} ms`;
-  const seconds = Math.round(ms / 100) / 10;
-  return `every ${seconds} s`;
-}
-
-function metricRows(
-  journey: JourneyChoice | undefined,
-  scale: number,
-  actors: number,
-  people: People,
-  count: number,
-  intervalMs: number,
-): { name: string; count: number; intervalMs: number }[] {
-  if (!journey) return [];
-  if (people === "metrics") {
-    const names = journey.metrics.length ? journey.metrics : ["http.server.requests"];
-    return names.map((name) => ({ name, count, intervalMs }));
-  }
-  const rows = new Map<string, { name: string; count: number; intervalMs: number }>();
-  for (const step of journey.steps) {
-    const name = metricFor(step.method, step.path);
-    if (!name) continue;
-    const gap = Math.max(200, Math.round(((step.thinkMs.min + step.thinkMs.max) / 2) / scale));
-    const row = rows.get(name) ?? { name, count: 0, intervalMs: gap };
-    row.count += actors;
-    rows.set(name, row);
-  }
-  if (rows.size === 0) {
-    const gap = journey.steps[0]
-      ? Math.max(200, Math.round(((journey.steps[0].thinkMs.min + journey.steps[0].thinkMs.max) / 2) / scale))
-      : 1000;
-    return [{ name: "http.server.requests", count: Math.max(1, journey.steps.length * actors), intervalMs: gap }];
-  }
-  return [...rows.values()];
-}
-
-function accountLine(slot: AccountSlot | undefined, fallback: string): string {
-  if (!slot) return fallback;
-  if (slot.usesApplication) return "No separate infrastructure account. Machine metrics use the application account.";
-  if (!slot.configured) return "Not configured. This pipeline stays in the collector log.";
-  return slot.site ? `Configured. Org ${slot.site}.` : "Configured.";
+function accountNote(slot: AccountSlot | undefined): string {
+  if (!slot) return "Checking this account.";
+  if (slot.usesApplication) return "Same account as Application.";
+  if (!slot.configured) return "Not set up. Numbers stay in the collector log.";
+  return "Ready.";
 }
 
 export function Studio() {
   const snapshot = useSyncExternalStore(runStore.subscribe, runStore.getSnapshot, runStore.getSnapshot);
-  const [target, setTarget] = useState("local");
-  const [mode, setMode] = useState<(typeof modes)[number]>("computer");
-  const [journey, setJourney] = useState("create-card");
-  const [pace, setPace] = useState<(typeof paces)[number]>("demo");
-  const [seed, setSeed] = useState("phase7-seed");
-  const [confirm, setConfirm] = useState("");
-  const [people, setPeople] = useState<People>("seeded");
-  const [application, setApplication] = useState(true);
-  const [infrastructure, setInfrastructure] = useState(false);
-  const [metricCount, setMetricCount] = useState(5);
-  const [intervalSeconds, setIntervalSeconds] = useState(2);
+  const [metrics, setMetrics] = useState<Metric[]>(fallback);
+  const [picked, setPicked] = useState<string[]>(["keel.card.created"]);
+  const [extra, setExtra] = useState<Metric[]>([]);
+  const [custom, setCustom] = useState("");
+  const [where, setWhere] = useState<Destination>("application");
+  const [times, setTimes] = useState(5);
+  const [every, setEvery] = useState(2);
 
   useEffect(() => {
     let cancel = false;
     void Promise.all([
       fetch("/targets", { headers: { accept: "application/json" } }).then((response) => response.json()),
-      fetch("/journeys", { headers: { accept: "application/json" } }).then((response) => response.json()),
       fetch("/accounts", { headers: { accept: "application/json" } }).then((response) => response.json()),
-    ]).then(([targetsBody, journeysBody, accountsBody]) => {
+      fetch("/metrics", { headers: { accept: "application/json" } }).then((response) => response.json()),
+    ]).then(([targetsBody, accountsBody, metricsBody]) => {
       if (cancel) return;
-      runStore.setCatalog(targetsBody.targets ?? [], asJourneys(journeysBody.journeys), accountsBody as AccountCatalog);
+      const next = asMetrics(metricsBody);
+      if (next.length) setMetrics(next);
+      runStore.setCatalog(targetsBody.targets ?? [], [], accountsBody as AccountCatalog);
     });
     return () => {
       cancel = true;
     };
   }, []);
 
-  const choices = snapshot.journeys.length
-    ? snapshot.journeys
-    : [{ id: "create-card", title: "create-card", actor: "grace", metrics: ["keel.card.created"], steps: [] }];
-  const chosen = choices.find((item) => item.id === journey) ?? choices[0];
-  const selectedTarget = snapshot.targets.find((item) => item.name === target);
-  const where = target === "local" ? "the board on this machine" : target === "local-prod" ? "the packaged board" : target === "production" ? "the live server" : target;
-  const scale = pace === "demo" || pace === "office" ? 10 : 1;
-  const actors = mode === "person" || target === "production" ? 1 : pace === "office" || pace === "real-time" ? 3 : 1;
-  const accounts = [
-    ...(application ? ["application" as const] : []),
-    ...(infrastructure ? ["infrastructure" as const] : []),
-  ];
-  const rows = metricRows(chosen, scale, actors, people, metricCount, intervalSeconds * 1000);
-  const who = people === "seeded"
-    ? `Signs in as ${cast[chosen?.actor ?? ""] ?? "a seeded person"}, already on the board.`
-    : people === "fresh"
-      ? "Signs up a new member for this run, then plays the story as that person."
-      : `Signs nobody in. Sends ${metricCount} ${metricCount === 1 ? "point" : "points"} of each metric ${formatGap(intervalSeconds * 1000)}.`;
-  const landing = accounts.length === 2
-    ? "Board numbers go to the application account with the run id. Machine numbers go to the infrastructure account without it."
-    : accounts[0] === "infrastructure"
-      ? "Numbers go to the infrastructure account, without a run id."
-      : "Numbers go to the application account, with the run id.";
+  const accounts = where === "both" ? (["application", "infrastructure"] as const) : ([where] as const);
+  const shown = [...metrics, ...extra.filter((item) => !metrics.some((known) => known.name === item.name))];
+  const chosen = shown.filter((item) => picked.includes(item.name));
+  const names = chosen.map((item) => titleFor(item.name));
+  const destination = where === "both" ? "both accounts" : where === "infrastructure" ? "the infrastructure account" : "the application account";
+  const summary = names.length
+    ? `Sending ${names.join(", ")} to ${destination}, ${times} ${times === 1 ? "time" : "times"}, every ${every} ${every === 1 ? "second" : "seconds"}.`
+    : "Pick at least one number.";
+
+  function toggle(name: string, on: boolean): void {
+    runStore.setError("");
+    setPicked((current) => (on ? [...new Set([...current, name])] : current.filter((item) => item !== name)));
+  }
+
+  function addCustom(): void {
+    const name = custom.trim();
+    if (!METRIC_NAME.test(name)) {
+      runStore.setError("Use a name like keel.signup.completed. Letters, digits, dots, and underscores.");
+      return;
+    }
+    if (picked.length >= 20 && !picked.includes(name)) {
+      runStore.setError("Twenty numbers is the limit for one send.");
+      return;
+    }
+    runStore.setError("");
+    setCustom("");
+    if (!metrics.some((item) => item.name === name)) {
+      setExtra((current) => (current.some((item) => item.name === name) ? current : [...current, { name, description: "A name you added." }]));
+    }
+    setPicked((current) => (current.includes(name) ? current : [...current, name]));
+  }
+
+  function removeCustom(name: string): void {
+    runStore.setError("");
+    setExtra((current) => current.filter((item) => item.name !== name));
+    setPicked((current) => current.filter((item) => item !== name));
+  }
 
   async function start(): Promise<void> {
-    const sentConfirm = target === "production" ? confirm : "";
-    if (target === "production" && sentConfirm !== "production") {
-      runStore.setError("Type production in Confirm. Anything else is refused.");
+    if (picked.length === 0) {
+      runStore.setError("Pick at least one number.");
       return;
     }
-    if (accounts.length === 0) {
-      runStore.setError("Pick the application account, the infrastructure account, or both.");
-      return;
-    }
-    if (people !== "seeded" && mode === "person") {
-      runStore.setError("A browser run uses the seeded people. Pick Computer for a new account or for metrics only.");
-      return;
-    }
-    const body: StartBody = {
-      target,
-      mode,
-      journey,
-      pace,
-      seed,
-      confirm: sentConfirm,
-      people,
-      accounts,
-      metricCount: people === "metrics" ? metricCount : rows.reduce((sum, row) => sum + row.count, 0) || 1,
-      intervalMs: people === "metrics" ? intervalSeconds * 1000 : rows[0]?.intervalMs || 1000,
-    };
     const response = await fetch("/runs", {
       method: "POST",
       headers: { accept: "application/json", "content-type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        target: "local",
+        mode: "computer",
+        journey: "create-card",
+        pace: "demo",
+        seed: "phase7-seed",
+        confirm: "",
+        people: "metrics",
+        accounts,
+        metrics: picked,
+        metricCount: times,
+        intervalMs: every * 1000,
+      }),
     });
     const json = await response.json();
     if (!response.ok) {
-      runStore.setError(json.error?.message ?? "The run was refused.");
+      runStore.setError(json.error?.message ?? "The send was refused.");
       return;
     }
     const run = json.run as { id: string; scale: number; actors: number; status: string };
@@ -261,145 +183,111 @@ export function Studio() {
     <main className="studio">
       <header className="top">
         <h1>Studio</h1>
-        <p>Drive a copy of the board. Choose the people, the account that stores the numbers, and how often those numbers are sent.</p>
+        <p>Pick the numbers. Choose where they go. Start.</p>
       </header>
-      <p className="brief">{`“${chosen?.title ?? journey}” on ${where}. ${who} ${landing}`}</p>
+      <p className="brief">{summary}</p>
       <form className="controls" onSubmit={(event) => event.preventDefault()}>
-        <div className="field">
-          <label htmlFor="target">Target</label>
-          <select id="target" name="target" value={target} onChange={(event) => { runStore.setError(""); setTarget(event.target.value); }}>
-            {(snapshot.targets.length ? snapshot.targets : [{ name: "local" }]).map((item) => (
-              <option key={item.name} value={item.name}>{targetLabel(item.name)}</option>
-            ))}
-          </select>
-          <p id="target-hint" className="hint">{targetHint(selectedTarget)}</p>
-        </div>
-        <div className="field">
-          <label htmlFor="mode">Mode</label>
-          <select id="mode" name="mode" value={mode} onChange={(event) => { runStore.setError(""); setMode(event.target.value as (typeof modes)[number]); }}>
-            {modes.map((id) => (
-              <option key={id} value={id} disabled={id === "person" && people !== "seeded"}>{modeCopy[id].label}</option>
-            ))}
-          </select>
-          <p className="hint">{people === "seeded" ? modeCopy[mode].hint : "A new account and a metrics-only run call the API. The browser journey still types an existing email."}</p>
-        </div>
-        <fieldset className="field span">
-          <legend>People</legend>
-          <label className="choice">
-            <input type="radio" name="people" value="seeded" checked={people === "seeded"} onChange={() => { runStore.setError(""); setPeople("seeded"); }} />
-            <span><strong>Already on the board.</strong> Ada, Grace, and Linus. This story signs in as {cast[chosen?.actor ?? ""] ?? "one of them"}.</span>
-          </label>
-          <label className="choice">
-            <input type="radio" name="people" value="fresh" checked={people === "fresh"} onChange={() => { runStore.setError(""); setPeople("fresh"); setMode("computer"); }} />
-            <span><strong>New account each run.</strong> Computer mode signs up a new member, then plays the story as that person. Nothing is reused from the cast.</span>
-          </label>
-          <label className="choice">
-            <input type="radio" name="people" value="metrics" checked={people === "metrics"} onChange={() => { runStore.setError(""); setPeople("metrics"); setMode("computer"); }} />
-            <span><strong>No accounts.</strong> Nobody signs in and the board is left alone. Studio sends only the metrics, at the count and interval below.</span>
-          </label>
-          <p className="hint">Already on the board is the seeded cast. A new account is created for that run only.</p>
-        </fieldset>
-        <fieldset className="field span">
-          <legend>Accounts</legend>
-          <label className="choice">
-            <input type="checkbox" checked={application} onChange={(event) => { runStore.setError(""); setApplication(event.target.checked); }} />
-            <span><strong>Application.</strong> The product account. Board metrics keep the run id. {accountLine(snapshot.accounts?.application, "Loading the application account.")}</span>
-          </label>
-          <label className="choice">
-            <input type="checkbox" checked={infrastructure} onChange={(event) => { runStore.setError(""); setInfrastructure(event.target.checked); }} />
-            <span><strong>Infrastructure.</strong> The machines account. Metrics here do not carry the run id. {accountLine(snapshot.accounts?.infrastructure, "Loading the infrastructure account.")}</span>
-          </label>
-          <p className="hint">{snapshot.accounts?.vendor === "openobserve" ? "OpenObserve is the store. A run id in the application account, and missing from the infrastructure account, is the finished story." : "No cloud vendor is selected. Both pipelines stay in the collector log."}</p>
-        </fieldset>
-        <div className="field">
-          <label htmlFor="journey">Journey</label>
-          <select id="journey" name="journey" value={journey} onChange={(event) => { runStore.setError(""); setJourney(event.target.value); }}>
-            {choices.map((item) => (
-              <option key={item.id} value={item.id}>{item.title}</option>
-            ))}
-          </select>
-          <p className="hint">The story this run will play.</p>
-        </div>
-        <div className="field">
-          <label htmlFor="pace">Pace</label>
-          <select id="pace" name="pace" value={pace} onChange={(event) => { runStore.setError(""); setPace(event.target.value as (typeof paces)[number]); }}>
-            {paces.map((id) => (
-              <option key={id} value={id}>{paceCopy[id].label}</option>
-            ))}
-          </select>
-          <p className="hint">{paceCopy[pace].hint}</p>
-        </div>
-        <div className="field span">
-          <p className="name">Metrics</p>
-          <table className="metrics">
-            <thead>
-              <tr><th>Metric</th><th>Count</th><th>Interval</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.name}>
-                  <td>{row.name}</td>
-                  <td>{row.count}</td>
-                  <td>{formatGap(row.intervalMs)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {people === "metrics" ? (
-            <div className="pair">
-              <label>
-                Count
-                <input id="count" type="number" min={1} max={100} value={metricCount} onChange={(event) => setMetricCount(Math.min(100, Math.max(1, Number(event.target.value) || 1)))} />
+        <fieldset className="field">
+          <legend>Numbers</legend>
+          {shown.map((item) => {
+            const added = extra.some((customMetric) => customMetric.name === item.name);
+            const row = (
+              <label className="choice">
+                <input
+                  type="checkbox"
+                  name="metric"
+                  value={item.name}
+                  checked={picked.includes(item.name)}
+                  onChange={(event) => toggle(item.name, event.target.checked)}
+                />
+                <span>
+                  <strong>{titleFor(item.name)}</strong>
+                  <small>{plain[item.name] ?? item.description}</small>
+                </span>
               </label>
-              <label>
-                Interval
-                <input id="interval" type="number" min={1} max={60} value={intervalSeconds} onChange={(event) => setIntervalSeconds(Math.min(60, Math.max(1, Number(event.target.value) || 1)))} />
-              </label>
-            </div>
-          ) : null}
-          <p className="hint">{people === "metrics" ? "Count is how many points of each metric are sent. Interval is the real wait in seconds. Pace does not stretch it." : "Count is how many times the story emits that metric. Interval is the pause before that step, already divided by the time scale."}</p>
-        </div>
+            );
+            return added ? (
+              <div className="custom-row" key={item.name}>
+                {row}
+                <button type="button" className="ghost" aria-label={`Remove ${item.name}`} onClick={() => removeCustom(item.name)}>Remove</button>
+              </div>
+            ) : (
+              <div key={item.name}>{row}</div>
+            );
+          })}
+          <div className="add">
+            <label htmlFor="custom">Add a metric</label>
+            <span className="with-unit">
+              <input
+                id="custom"
+                name="custom"
+                value={custom}
+                placeholder="keel.signup.completed"
+                onChange={(event) => setCustom(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCustom();
+                  }
+                }}
+              />
+              <button type="button" onClick={addCustom}>Add</button>
+            </span>
+            <p className="hint">Letters, digits, dots, and underscores.</p>
+          </div>
+        </fieldset>
+        <fieldset className="field">
+          <legend>Where they go</legend>
+          <label className="choice">
+            <input type="radio" name="where" value="application" checked={where === "application"} onChange={() => { runStore.setError(""); setWhere("application"); }} />
+            <span>
+              <strong>Application</strong>
+              <small>Keeps this run’s id. {accountNote(snapshot.accounts?.application)}</small>
+            </span>
+          </label>
+          <label className="choice">
+            <input type="radio" name="where" value="infrastructure" checked={where === "infrastructure"} onChange={() => { runStore.setError(""); setWhere("infrastructure"); }} />
+            <span>
+              <strong>Infrastructure</strong>
+              <small>Leaves the run id out. {accountNote(snapshot.accounts?.infrastructure)}</small>
+            </span>
+          </label>
+          <label className="choice">
+            <input type="radio" name="where" value="both" checked={where === "both"} onChange={() => { runStore.setError(""); setWhere("both"); }} />
+            <span>
+              <strong>Both</strong>
+              <small>Application keeps the run id. Infrastructure does not.</small>
+            </span>
+          </label>
+        </fieldset>
         <div className="field">
-          <label htmlFor="seed">Seed</label>
-          <input id="seed" name="seed" value={seed} onChange={(event) => setSeed(event.target.value)} />
-          <p className="hint">A name for this rehearsal. The same seed repeats the same pauses. It is not a password.</p>
+          <div className="pair">
+            <label htmlFor="times">Times</label>
+            <label htmlFor="every">Every</label>
+            <input id="times" type="number" min={1} max={100} value={times} onChange={(event) => setTimes(Math.min(100, Math.max(1, Number(event.target.value) || 1)))} />
+            <span className="with-unit">
+              <input id="every" type="number" min={1} max={60} value={every} onChange={(event) => setEvery(Math.min(60, Math.max(1, Number(event.target.value) || 1)))} />
+              <span>seconds</span>
+            </span>
+          </div>
         </div>
-        {target === "production" ? (
-          <div className="field">
-            <label htmlFor="confirm">Confirm</label>
-            <input
-              id="confirm"
-              name="confirm"
-              value={confirm}
-              placeholder="production"
-              onChange={(event) => setConfirm(event.target.value)}
-            />
-            <p className="hint">Type the word production. Studio refuses a live run until this matches.</p>
-          </div>
-        ) : (
-          <div className="field">
-            <p className="name">Confirm</p>
-            <p className="hint">Left empty on purpose. Only the live server asks you to type production. A word like yes is refused.</p>
-          </div>
-        )}
         <div className="actions">
           <button type="button" onClick={() => void start()}>Start</button>
           <button type="button" className="ghost" onClick={() => void control("pause")} disabled={!live}>Pause</button>
           <button type="button" className="ghost" onClick={() => void control("stop")} disabled={!live}>Stop</button>
-          <p className="hint">Start plays the journey. Pause holds the clock. Stop ends the session and leaves cards already written.</p>
         </div>
       </form>
       {snapshot.error ? <p className="alert" role="alert">{snapshot.error}</p> : null}
       {live ? (
         <section className="strip" aria-label="Live run">
-          <h2>This run</h2>
+          <h2>This send</h2>
           <dl>
             <div>
               <dt>Run</dt>
               <dd data-run="">{live.id}</dd>
             </div>
             <div>
-              <dt>Time scale</dt>
+              <dt>Scale</dt>
               <dd data-scale="">{live.scale}</dd>
             </div>
             <div>
@@ -407,11 +295,11 @@ export function Studio() {
               <dd>{live.status}</dd>
             </div>
             <div>
-              <dt>Who</dt>
-              <dd>{latest?.actor ?? `${live.actors} ready`}</dd>
+              <dt>Sent</dt>
+              <dd>{latest ? `${live.events.length} of ${times}` : "waiting"}</dd>
             </div>
             <div>
-              <dt>Step</dt>
+              <dt>Number</dt>
               <dd>{latest?.step ?? "starting"}</dd>
             </div>
             <div>
@@ -419,11 +307,6 @@ export function Studio() {
               <dd>{latest?.errorCount ?? 0}</dd>
             </div>
           </dl>
-          <p className="hint">
-            {live.scale === 1
-              ? "Time scale 1 means pauses run at the recorded speed."
-              : `Time scale ${live.scale} means each pause lasts ${live.scale} times longer.`}
-          </p>
         </section>
       ) : null}
     </main>
