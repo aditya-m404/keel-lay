@@ -1,0 +1,89 @@
+{
+  "feature": "lay-manual-1",
+  "manifest": {
+    "schema": 3,
+    "feature": "lay-manual-1",
+    "changeType": "new-feature",
+    "userFacing": false,
+    "complexity": "low",
+    "change": {
+      "id": "chg_01M6RWMPMNASNV1CWCW0CF1HQC",
+      "title": "lay-manual-1: a marker header on POST /cards",
+      "description": "When on, POST /cards answers with x-keel-cp: lay-manual-1. A test control point for FireWeave's manual ramping (H1).",
+      "author": "aditya@fireweave.ai",
+      "createdAt": "2026-11-06T16:53:20.000Z",
+      "branch": "lay-manual-1",
+      "backwardCompatible": "required",
+      "supersedes": [],
+      "supersededBy": [],
+      "status": "in-progress"
+    },
+    "controlPointTelemetryProvider": "connected:fireweave",
+    "controlPoints": [
+      {
+        "key": "lay-manual-1",
+        "default": false,
+        "cohortKey": "userId",
+        "userFacing": false,
+        "description": "Off: POST /cards answers as today. On: the answer also carries the header x-keel-cp: lay-manual-1.",
+        "tags": [
+          "fireweave-test"
+        ],
+        "noSignalNeeded": {
+          "reason": "A response header only: no behaviour that can fail differently. This rollout is ramped by hand on purpose (scenario H1)."
+        }
+      }
+    ],
+    "context": {
+      "targetingKey": "userId",
+      "dimensions": []
+    },
+    "telemetry": {
+      "logs": [],
+      "traces": [],
+      "dimensions": []
+    },
+    "surfaces": [
+      {
+        "surfaceId": "sfc_01M6RFS5R4RPTX66KVM0PZKCA4",
+        "stampId": "stmp_01M6RWMPMT1A327TJR2PZQS4MJ",
+        "wrapPoints": [
+          {
+            "file": "apps/api/src/routes/cards.ts",
+            "symbol": "quickCreateOn",
+            "wrapStyle": "function-guard",
+            "controlPointKey": "lay-manual-1"
+          }
+        ],
+        "harness": {
+          "surface": "ts-server",
+          "kind": "package",
+          "path": "apps/api/src/app.ts",
+          "rolloutCredentialEnv": "FIREWEAVE_KEY",
+          "controlPoints": {
+            "api": "control-points",
+            "sdk": "server",
+            "devProvider": "control-points-file",
+            "rolloutProvider": "connected:fireweave"
+          },
+          "telemetry": {
+            "api": "otel",
+            "devExporter": "console",
+            "rolloutTransport": "otlp",
+            "semconv": "fireweave/rollout-otel-semconv-v1",
+            "signals": {}
+          }
+        },
+        "telemetry": {
+          "metrics": []
+        }
+      }
+    ],
+    "metricsCheck": {
+      "state": "bound",
+      "environment": "production",
+      "checkedAt": "2026-11-06T16:53:20.000Z"
+    }
+  },
+  "baseContentHash": "sha256:1c814a9f09f75dacea4b4abdf4de276b45e0d05cf66e691ae2151af6ce4615de"
+}
