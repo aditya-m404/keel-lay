@@ -47,6 +47,12 @@ if [[ -z "${KEEL_VENDOR_INFRA_ENDPOINT:-}" || -z "${KEEL_VENDOR_INFRA_API_KEY:-}
   export KEEL_VENDOR_INFRA_ENDPOINT="${KEEL_VENDOR_APP_ENDPOINT:-}"
   export KEEL_VENDOR_INFRA_API_KEY="${KEEL_VENDOR_APP_API_KEY:-}"
 fi
-if [[ -n "${KEEL_VENDOR_APP_API_KEY:-}" && -n "${KEEL_VENDOR_INFRA_API_KEY:-}" && -n "${KEEL_VENDOR_APP_ENDPOINT:-}" && -n "${KEEL_VENDOR_INFRA_ENDPOINT:-}" && "${KEEL_COLLECTOR_VENDOR:-debug}" != "debug" ]]; then
+if [[ "${KEEL_COLLECTOR_VENDOR:-debug}" == "multi" ]]; then
+  if [[ -n "${KEEL_FANOUT_OPENOBSERVE_API_KEY:-}${KEEL_FANOUT_SENTRY_API_KEY:-}${KEEL_FANOUT_DATADOG_API_KEY:-}" ]]; then
+    node scripts/doctor-vendor.ts
+  else
+    echo "multi: no vendor pair is filled; both pipelines stay in the collector log"
+  fi
+elif [[ -n "${KEEL_VENDOR_APP_API_KEY:-}" && -n "${KEEL_VENDOR_INFRA_API_KEY:-}" && -n "${KEEL_VENDOR_APP_ENDPOINT:-}" && -n "${KEEL_VENDOR_INFRA_ENDPOINT:-}" && "${KEEL_COLLECTOR_VENDOR:-debug}" != "debug" ]]; then
   node scripts/doctor-vendor.ts
 fi

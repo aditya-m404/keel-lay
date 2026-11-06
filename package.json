@@ -28,7 +28,7 @@
     "build:studio": "pnpm --filter @keel/studio build && node scripts/bundle-studio.mjs",
     "prove": "node scripts/prove.ts",
     "journeys:check": "node scripts/journeys-check.ts",
-    "check": "node scripts/journeys-check.ts && node --test collector/routing.test.mjs && pnpm exec tsc -p apps/api --noEmit && pnpm exec tsc -p apps/web --noEmit && pnpm exec tsc -p apps/studio --noEmit",
+    "check": "node scripts/journeys-check.ts && node --test collector/routing.test.mjs collector/multi.test.mjs && pnpm exec tsc -p apps/api --noEmit && pnpm exec tsc -p apps/web --noEmit && pnpm exec tsc -p apps/studio --noEmit",
     "phase": "node scripts/phase.mjs"
   },
   "devDependencies": {

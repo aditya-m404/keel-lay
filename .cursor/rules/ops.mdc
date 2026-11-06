@@ -17,7 +17,7 @@ Local compose runs Postgres and the collector. The API, web, and Studio on 4100�
 
 `scripts/up` prints the URLs and the matching `npm run down*` line. Keep that output. `scripts/up` runs on macOS bash 3.2 with `set -u`, so leave empty arrays unexpanded.
 
-Vendor accounts are OpenObserve cloud, configured from env. There is no OpenObserve container. An empty infrastructure endpoint reuses the application account. The same key for both accounts is valid. Compose quotes the key variables so the space in `Basic …` survives. Both collectors mount `generated/collector.yaml`. Render once, then recreate both collectors.
+Vendor accounts are OpenObserve cloud, configured from env. There is no OpenObserve container. An empty infrastructure endpoint reuses the application account. The same key for both accounts is valid. Compose quotes the key variables so the space in `Basic …` survives. Both collectors mount `generated/collector.yaml`. Render once, then recreate both collectors. With `KEEL_COLLECTOR_VENDOR=multi` the `KEEL_FANOUT_*` pairs are the application vendors (compose passes them to the collector too) and an empty infrastructure pair stays in the collector log.
 
 `pnpm prod` runs only when `KEEL_ENV=production`. Production origins and the session secret are the `KEEL_PROD_*` variables.
 

@@ -10,7 +10,24 @@ const yaml = require("yaml") as {
   stringify: (value: unknown) => string;
 };
 
-const vendors = new Set(["debug", "openobserve", "datadog", "sentry"]);
+const vendors = new Set(["debug", "openobserve", "datadog", "sentry", "multi"]);
+
+// multi: every vendor below with a filled KEEL_FANOUT_<NAME>_ENDPOINT and _API_KEY pair receives the
+// application pipelines at once. KEEL_FANOUT_<NAME>_SIGNALS narrows a vendor to some of logs, traces,
+// and metrics, for an endpoint that refuses one of them.
+const FANOUT = ["openobserve", "sentry", "datadog"] as const;
+const SIGNALS = ["logs", "traces", "metrics"] as const;
+
+function fanout(name: (typeof FANOUT)[number]): { live: boolean; signals: Set<string> } {
+  const upper = name.toUpperCase();
+  const endpoint = process.env[`KEEL_FANOUT_${upper}_ENDPOINT`]?.trim() ?? "";
+  const key = process.env[`KEEL_FANOUT_${upper}_API_KEY`]?.trim() ?? "";
+  const listed = (process.env[`KEEL_FANOUT_${upper}_SIGNALS`]?.trim() ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item): item is (typeof SIGNALS)[number] => (SIGNALS as readonly string[]).includes(item));
+  return { live: endpoint.length > 0 && key.length > 0, signals: new Set(listed.length ? listed : SIGNALS) };
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -50,7 +67,25 @@ const merged = merge(base, extra) as {
   service: { pipelines: Record<string, { exporters?: string[] }> };
 };
 
-if (vendor !== "debug") {
+if (vendor === "multi") {
+  const infraFilled = infraSlot.key.length > 0 && infraSlot.endpoint.length > 0;
+  const live = FANOUT.filter((name) => fanout(name).live);
+  for (const signal of SIGNALS) {
+    const exporters = live.filter((name) => fanout(name).signals.has(signal)).map((name) => `otlphttp/${name}`);
+    merged.service.pipelines[`${signal}/app`].exporters = exporters.length ? exporters : ["debug/app"];
+    merged.service.pipelines[`${signal}/infra`].exporters = [infraFilled ? "otlphttp/infra" : "debug/infra"];
+  }
+  for (const name of FANOUT) if (!fanout(name).live) delete merged.exporters[`otlphttp/${name}`];
+  const appDebug = SIGNALS.some((signal) => merged.service.pipelines[`${signal}/app`].exporters?.includes("debug/app"));
+  if (!appDebug) delete merged.exporters["debug/app"];
+  if (infraFilled) delete merged.exporters["debug/infra"];
+  else delete merged.exporters["otlphttp/infra"];
+  const slotDebug = ["debug/app", "debug/infra"].filter((name) => name in merged.exporters);
+  if (slotDebug.length === 1) {
+    merged.service.pipelines["metrics/unlabeled"].exporters = [slotDebug[0]];
+    delete merged.exporters["debug/unlabeled"];
+  }
+} else if (vendor !== "debug") {
   const filled = (current: { key: string; endpoint: string }) => current.key.length > 0 && current.endpoint.length > 0;
   const appFilled = filled(appSlot);
   const infraFilled = filled(infraSlot);

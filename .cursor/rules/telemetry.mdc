@@ -13,3 +13,7 @@ App telemetry sets `keel.signal=app` and keeps `keel.run_id`. The infra processo
 `node scripts/render-collector.ts` writes `generated/collector.yaml`. That file references `${env:KEEL_VENDOR_*}` and never contains the key. With vendor `openobserve`, a filled application account and an empty infrastructure account reuse `otlphttp/app` for both pipelines. Two filled accounts use `otlphttp/app` and `otlphttp/infra`, even when the keys match. Debug exporters have no `sending_queue`.
 
 `pnpm prove` exits 0 for a real export when the application account has the run's log and span, the infrastructure account does not have that run id, and `http.server.request.duration` is queryable. A debug vendor prints `not exported` and exits 0. A shared org searches infrastructure rows with `keel_signal = 'infra'`.
+
+## Several vendors at once
+
+`KEEL_COLLECTOR_VENDOR=multi` renders `collector/vendors/multi.yaml`. Every `KEEL_FANOUT_<VENDOR>_ENDPOINT` and `_API_KEY` pair that is filled (OpenObserve, Sentry, Datadog) receives the application pipelines at the same time; `KEEL_FANOUT_<VENDOR>_SIGNALS` narrows one vendor to some of `logs,traces,metrics`. The infrastructure pipelines use the `KEEL_VENDOR_INFRA_*` pair as an OpenObserve account, or stay in the collector log; they never fall back to the application set. `collector/multi.test.mjs` pins this. `doctor` probes each filled vendor with its own header and records which of metrics, logs, and traces it accepted.

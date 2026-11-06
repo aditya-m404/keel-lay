@@ -92,14 +92,26 @@ export function createStudioApp(): Hono {
 
   app.get("/accounts", (c) => {
     const vendor = (process.env.KEEL_COLLECTOR_VENDOR || "debug").trim();
+    const infraEndpoint = (process.env.KEEL_VENDOR_INFRA_ENDPOINT || "").trim();
+    const infraKey = (process.env.KEEL_VENDOR_INFRA_API_KEY || "").trim();
+    if (vendor === "multi") {
+      // The application account is every fan-out vendor with a filled pair. Infrastructure never falls back to it.
+      const live = ["openobserve", "sentry", "datadog"].filter((name) => {
+        const upper = name.toUpperCase();
+        return Boolean((process.env[`KEEL_FANOUT_${upper}_ENDPOINT`] || "").trim() && (process.env[`KEEL_FANOUT_${upper}_API_KEY`] || "").trim());
+      });
+      const application = { name: "application" as const, configured: live.length > 0, site: live.join(" + ") };
+      const infrastructure = infraEndpoint && infraKey
+        ? accountSlot("infrastructure", infraEndpoint, infraKey, shown(process.env.KEEL_VENDOR_INFRA_SITE))
+        : { name: "infrastructure" as const, configured: false, site: "" };
+      return c.json({ vendor, application, infrastructure });
+    }
     const application = accountSlot(
       "application",
       (process.env.KEEL_VENDOR_APP_ENDPOINT || "").trim(),
       (process.env.KEEL_VENDOR_APP_API_KEY || "").trim(),
       shown(process.env.KEEL_VENDOR_APP_SITE),
     );
-    const infraEndpoint = (process.env.KEEL_VENDOR_INFRA_ENDPOINT || "").trim();
-    const infraKey = (process.env.KEEL_VENDOR_INFRA_API_KEY || "").trim();
     const infrastructure = infraEndpoint && infraKey
       ? accountSlot("infrastructure", infraEndpoint, infraKey, shown(process.env.KEEL_VENDOR_INFRA_SITE))
       : { ...application, name: "infrastructure" as const, usesApplication: true };

@@ -1,9 +1,9 @@
 const vendor = (process.env.KEEL_COLLECTOR_VENDOR ?? "").trim();
 
-function headers(key: string): Record<string, string> {
+function headers(key: string, name = vendor): Record<string, string> {
   const sent: Record<string, string> = { "content-type": "application/json" };
-  if (vendor === "datadog") sent["dd-api-key"] = key;
-  else if (vendor === "sentry") sent["x-sentry-auth"] = key;
+  if (name === "datadog") sent["dd-api-key"] = key;
+  else if (name === "sentry") sent["x-sentry-auth"] = key;
   else sent.authorization = key;
   return sent;
 }
@@ -72,12 +72,12 @@ function body(signal: "app" | "infra", kind: "traces" | "logs" | "metrics"): str
   });
 }
 
-async function probe(endpoint: string, key: string, signal: "app" | "infra", kind: "metrics" | "logs" | "traces"): Promise<string> {
+async function probe(endpoint: string, key: string, signal: "app" | "infra", kind: "metrics" | "logs" | "traces", name = vendor): Promise<string> {
   const path = kind === "metrics" ? "/v1/metrics" : kind === "logs" ? "/v1/logs" : "/v1/traces";
   try {
     const response = await fetch(`${endpoint.replace(/\/$/, "")}${path}`, {
       method: "POST",
-      headers: headers(key),
+      headers: headers(key, name),
       body: body(signal, kind),
       signal: AbortSignal.timeout(4000),
     });
@@ -87,16 +87,36 @@ async function probe(endpoint: string, key: string, signal: "app" | "infra", kin
   }
 }
 
-const slots = [
-  ["app", process.env.KEEL_VENDOR_APP_ENDPOINT ?? "", process.env.KEEL_VENDOR_APP_API_KEY ?? ""],
-  ["infra", process.env.KEEL_VENDOR_INFRA_ENDPOINT ?? "", process.env.KEEL_VENDOR_INFRA_API_KEY ?? ""],
-] as const;
-
 const parts: string[] = [];
-for (const [signal, endpoint, key] of slots) {
-  for (const kind of ["metrics", "logs", "traces"] as const) {
-    const result = await probe(endpoint, key, signal, kind);
-    parts.push(`${signal} ${kind} ${result}`);
+if (vendor === "multi") {
+  // Each fan-out vendor is probed with its own header. An empty pair is skipped, not refused.
+  for (const name of ["openobserve", "sentry", "datadog"] as const) {
+    const upper = name.toUpperCase();
+    const endpoint = (process.env[`KEEL_FANOUT_${upper}_ENDPOINT`] ?? "").trim();
+    const key = (process.env[`KEEL_FANOUT_${upper}_API_KEY`] ?? "").trim();
+    if (!endpoint || !key) continue;
+    for (const kind of ["metrics", "logs", "traces"] as const) {
+      parts.push(`${name} ${kind} ${await probe(endpoint, key, "app", kind, name)}`);
+    }
   }
+  const infraEndpoint = (process.env.KEEL_VENDOR_INFRA_ENDPOINT ?? "").trim();
+  const infraKey = (process.env.KEEL_VENDOR_INFRA_API_KEY ?? "").trim();
+  if (infraEndpoint && infraKey) {
+    for (const kind of ["metrics", "logs", "traces"] as const) {
+      parts.push(`infra ${kind} ${await probe(infraEndpoint, infraKey, "infra", kind, "openobserve")}`);
+    }
+  }
+  console.log(parts.length ? parts.join(", ") : "multi: no vendor pair is filled");
+} else {
+  const slots = [
+    ["app", process.env.KEEL_VENDOR_APP_ENDPOINT ?? "", process.env.KEEL_VENDOR_APP_API_KEY ?? ""],
+    ["infra", process.env.KEEL_VENDOR_INFRA_ENDPOINT ?? "", process.env.KEEL_VENDOR_INFRA_API_KEY ?? ""],
+  ] as const;
+  for (const [signal, endpoint, key] of slots) {
+    for (const kind of ["metrics", "logs", "traces"] as const) {
+      const result = await probe(endpoint, key, signal, kind);
+      parts.push(`${signal} ${kind} ${result}`);
+    }
+  }
+  console.log(parts.join(", "));
 }
-console.log(parts.join(", "));

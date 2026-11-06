@@ -1,0 +1,34 @@
+# multi: the application pipelines fan out to every vendor whose KEEL_FANOUT_* pair is filled.
+# The infrastructure pipelines use the KEEL_VENDOR_INFRA_* pair as an OpenObserve account, or the collector log.
+# scripts/render-collector.ts keeps only the exporters that are configured and wires the pipelines.
+exporters:
+  otlphttp/openobserve:
+    endpoint: ${env:KEEL_FANOUT_OPENOBSERVE_ENDPOINT}
+    headers:
+      Authorization: ${env:KEEL_FANOUT_OPENOBSERVE_API_KEY}
+      stream-name: default
+    sending_queue:
+      enabled: true
+  otlphttp/sentry:
+    endpoint: ${env:KEEL_FANOUT_SENTRY_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:KEEL_FANOUT_SENTRY_API_KEY}
+    sending_queue:
+      enabled: true
+  otlphttp/datadog:
+    endpoint: ${env:KEEL_FANOUT_DATADOG_ENDPOINT}
+    headers:
+      DD-API-KEY: ${env:KEEL_FANOUT_DATADOG_API_KEY}
+    sending_queue:
+      enabled: true
+  otlphttp/infra:
+    endpoint: ${env:KEEL_VENDOR_INFRA_ENDPOINT}
+    headers:
+      Authorization: ${env:KEEL_VENDOR_INFRA_API_KEY}
+      stream-name: default
+    sending_queue:
+      enabled: true
+  debug/app:
+    verbosity: detailed
+  debug/infra:
+    verbosity: detailed
