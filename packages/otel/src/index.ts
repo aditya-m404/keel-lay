@@ -163,6 +163,7 @@ export function startTelemetry(options?: {
     "service.version": gitSha(root),
     "deployment.environment": process.env.KEEL_ENV || "local",
     "keel.signal": "app",
+    ...(process.env.KEEL_INSTANCE ? { "keel.instance": process.env.KEEL_INSTANCE } : {}),
   });
   const base = endpoint();
   const traces = scrubbingSpanExporter(options?.traces ?? new OTLPTraceExporter({ url: `${base}/v1/traces`, timeoutMillis: 1000 }));

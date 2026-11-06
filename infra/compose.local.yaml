@@ -1,5 +1,5 @@
 # Local. Host processes use 4100, 4101, and 4102. This file is only Postgres and the collector.
-name: keel
+name: keel-lay
 
 services:
   postgres:

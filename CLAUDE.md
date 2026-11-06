@@ -18,6 +18,10 @@ Node 22 or newer runs `.ts` files directly. Imports use `.ts` extensions. The pa
 
 `pnpm check` is the local gate. After a web UI change, exercise the changed flow in the browser.
 
+## Testbed
+
+This repository is `aditya-m404/keel-lay`, a fork of `fireweave-HQ-Demo/keel` (the `upstream` remote, push disabled) used to test FireWeave's ramping flow against Keel. The product rules above still hold for Keel's own code. The exception is on purpose: FireWeave's harness, control points, manifests and the files under `.fireweave/` and `docs/fireweave-testbed.md` belong here and may name FireWeave. Compose projects are `keel-lay` and `keel-lay-local-prod`, every API signal carries `keel.instance` from `KEEL_INSTANCE`, and `deploy.yml` never runs in this repository. See `README.md`.
+
 ## Path rules
 
 Read the matching file in `.claude/rules/` before editing that area. Cursor loads the same text from `.cursor/rules/`. Change both copies in the same edit.

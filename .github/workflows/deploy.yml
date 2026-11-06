@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   deploy:
+    # The testbed copy of this repository has no server. Only the upstream repository deploys.
+    if: github.repository == 'fireweave-HQ-Demo/keel'
     runs-on: ubuntu-latest
     environment: production
     steps:

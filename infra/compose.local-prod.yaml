@@ -1,5 +1,5 @@
 # Local-prod. Its own project, volume, and host ports, so it can run beside local.
-name: keel-local-prod
+name: keel-lay-local-prod
 
 services:
   postgres:
