@@ -15,6 +15,7 @@ import {
   patchCardResponse,
   searchResponse,
 } from "@keel/contracts/writes";
+import { fw } from "@fireweaveai/server-sdk/start";
 import { currentUser } from "../auth.ts";
 import { CARD_SELECT, mapCard, mapComment, type CardRow, type CommentRow } from "../card-row.ts";
 import { withTx } from "../db/tx.ts";
@@ -146,6 +147,13 @@ async function placeInColumn(client: pg.PoolClient, column: string, movingId: st
 export function cardRoutes(pool: pg.Pool): Hono {
   const app = new Hono();
 
+  // lay-manual-1: a test control point for FireWeave's manual ramping (H1). On, POST /cards answers with
+  // an x-keel-cp header; nothing else changes. Read in one place, default off, per the rollout contract.
+  async function quickCreateOn(userId: string): Promise<boolean> {
+    // @fireweave-controlpoint lay-manual-1
+    return fw.controlPoints.getBooleanValue("lay-manual-1", false, { targetingKey: userId });
+  }
+
   app.post("/cards", async (c) => {
     const user = await currentUser(pool, c);
     if (!user) return c.json(UNAUTHENTICATED, 401);
@@ -201,6 +209,7 @@ export function cardRoutes(pool: pg.Pool): Hono {
     if (result.kind === "created" && consumeFault(c.req.header("x-keel-fault"))) throw new Error("keel fault");
     c.set("keelBusiness", "keel.card.created");
     if (result.kind === "replay") c.header("x-keel-idempotent", "replay");
+    if (await quickCreateOn(user.id)) c.header("x-keel-cp", "lay-manual-1");
     return c.json(result.body, 201);
   });
 

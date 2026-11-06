@@ -3,5 +3,6 @@
 import { defineControlPoints } from '@fireweaveai/server-sdk/start';
 
 export const controlPoints = defineControlPoints({
-  // 'new-checkout': { local: true },
+  // Test control points for FireWeave's ramping flow (docs/fireweave-testbed.md). Each is a harmless read.
+  'lay-manual-1': { local: true },
 });
