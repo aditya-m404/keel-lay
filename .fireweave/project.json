@@ -1,0 +1,47 @@
+{
+  "defaultEnvironment": "production",
+  "orgId": "ggUjd3pHJt9H32EIivmFzXn81o6Fng7p",
+  "projectId": "d098717d-3b9c-4a66-bc3e-752bec4ae7e3",
+  "projectName": "keel-lay",
+  "rolloutReady": {
+    "attestUrl": "https://staging-app-server.fireweave.ai",
+    "rolloutCredentialEnv": "FIREWEAVE_KEY"
+  },
+  "server": {
+    "url": "https://staging-app-server.fireweave.ai"
+  },
+  "surfaces": [
+    {
+      "entrypoint": "apps/api/src/app.ts",
+      "harnessKind": "package",
+      "metricsClient": "none",
+      "path": "apps/api",
+      "rolloutCredentialEnv": "FIREWEAVE_KEY",
+      "surface": "ts-server",
+      "surfaceId": "sfc_01M6RFS5R4RPTX66KVM0PZKCA4",
+      "trackerPath": ".fireweave/stamps.ts",
+      "sdk": {
+        "name": "@fireweaveai/server-sdk",
+        "version": "3.0.0-rc.1",
+        "channel": "staging"
+      }
+    },
+    {
+      "entrypoint": "apps/web/src/main.tsx",
+      "harnessKind": "package",
+      "metricsClient": "none",
+      "path": "apps/web",
+      "rolloutCredentialEnv": "FIREWEAVE_BROWSER_KEY",
+      "startProfile": "client",
+      "surface": "web",
+      "surfaceId": "sfc_01M6RFS5R5VHYC7BXBZQSZ92GW",
+      "trackerPath": ".fireweave/stamps.ts",
+      "sdk": {
+        "name": "@fireweaveai/web-sdk",
+        "version": "3.0.0-rc.1",
+        "channel": "staging"
+      }
+    }
+  ],
+  "version": 2
+}
