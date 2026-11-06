@@ -1,3 +1,4 @@
+import { fw } from "@fireweaveai/web-sdk/start";
 import { useSyncExternalStore } from "react";
 import { api, ApiError } from "../api.ts";
 
@@ -20,6 +21,7 @@ async function load(): Promise<void> {
   try {
     const body = await api.session();
     session = { status: "user", user: body.user };
+    await fw.identify(body.user.id, { role: body.user.role });
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) session = { status: "anonymous" };
     else throw error;
@@ -44,10 +46,12 @@ export const sessionStore = {
   },
   setUser(user: User): void {
     session = { status: "user", user };
+    void fw.identify(user.id, { role: user.role });
     emit();
   },
   clear(): void {
     session = { status: "anonymous" };
+    void fw.reset();
     emit();
   },
 };

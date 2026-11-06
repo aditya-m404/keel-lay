@@ -1,6 +1,6 @@
 // The app's only FireWeave setup. Imported FIRST by the entry module.
 import { start } from '@fireweaveai/web-sdk/start';
-import { controlPoints } from './control-points';
+import { controlPoints } from './control-points.ts';
 
 export const ready = start({ controlPoints });
 // Overrides (all optional). See .fireweave/agent-instructions.md, "FireWeave SDK: configuration and overrides (web)".

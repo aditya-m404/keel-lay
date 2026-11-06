@@ -1,4 +1,4 @@
-import { ready } from "./fireweave/start"; // FireWeave: must stay the first import
+import { ready } from "./fireweave/start.ts"; // FireWeave: must stay the first import
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router";

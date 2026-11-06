@@ -1,4 +1,5 @@
-import "./fireweave/start"; // FireWeave: must stay the first import
+import "./fireweave/start.ts"; // FireWeave: must stay the first import
+import { fw } from "@fireweaveai/server-sdk/start";
 import path from "node:path";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -50,6 +51,7 @@ async function listen(): Promise<void> {
   const hostname = process.env.KEEL_BIND || url.hostname;
   serve({ fetch: app.fetch, port, hostname }, () => {
     console.log(`api ${origin}`);
+    console.log(`fireweave ${JSON.stringify(fw.status())}`);
   });
 }
 
